@@ -33,6 +33,8 @@ function kindOf(url: string, live: boolean): Kind {
 }
 
 export class Html5Engine implements PlayerEngine {
+  /** Counts loads, so a late error from a replaced stream is ignored. */
+  private gen = 0;
   readonly name = 'HTML5';
   private video: HTMLVideoElement;
   private hls: any = null;
@@ -61,6 +63,7 @@ export class Html5Engine implements PlayerEngine {
   }
 
   async load(url: string, opts: LoadOptions): Promise<void> {
+    const gen = ++this.gen;
     this.teardown();
     this.ev.status('loading');
     const v = this.video;
@@ -101,7 +104,8 @@ export class Html5Engine implements PlayerEngine {
       await v.play();
     } catch (e) {
       // Autoplay may be blocked in a desktop browser until the user interacts; not fatal.
-      if (e instanceof Error && e.name !== 'NotAllowedError' && e.name !== 'AbortError') this.ev.error(e.message);
+      // Not when another stream replaced this one meanwhile: that rejection is about the old one.
+      if (gen === this.gen && e instanceof Error && e.name !== 'NotAllowedError' && e.name !== 'AbortError') this.ev.error(e.message);
     }
     v.textTracks.addEventListener ? v.textTracks.addEventListener('change', this.onCue) : undefined;
   }

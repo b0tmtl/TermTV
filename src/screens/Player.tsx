@@ -236,7 +236,11 @@ export function PlayerScreen() {
       {(st.status === 'loading' || st.status === 'buffering') && (
         <div class="status">
           <LoadingDots />
-          {st.reconnecting > 0 && <div style={{ marginTop: 14, fontSize: 22 }}>{t('player.reconnecting', { n: st.reconnecting })}</div>}
+          {st.serverNote ? (
+            <div style={{ marginTop: 14, fontSize: 22 }}>{t('player.tryingBackup', { n: st.serverNote.n, total: st.serverNote.total })}</div>
+          ) : (
+            st.reconnecting > 0 && <div style={{ marginTop: 14, fontSize: 22 }}>{t('player.reconnecting', { n: st.reconnecting })}</div>
+          )}
         </div>
       )}
       {st.status === 'error' && (

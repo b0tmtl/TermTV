@@ -308,7 +308,8 @@
       "fill": "Fill",
       "stretch": "Stretch"
     },
-    "loading": "Loading"
+    "loading": "Loading",
+    "tryingBackup": "Server not answering, trying URL {n} of {total}…"
   },
   "search": {
     "placeholder": "Type to search…",

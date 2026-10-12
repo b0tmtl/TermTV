@@ -1,6 +1,6 @@
 {
   "name": "termtv",
-  "version": "0.1.13",
+  "version": "0.1.14",
   "description": "Free, open-source IPTV player for Samsung Smart TVs (Tizen 3.0+ / 2017+). Bring your own Xtream or M3U source.",
   "license": "GPL-3.0-only",
   "private": true,

@@ -8,7 +8,7 @@ import {
 } from '@/core/categories';
 import type { Category, Channel, Episode, Item, MediaKind, Movie, Programme, Series, SeriesDetails, MovieDetails, Source } from '@/core/models';
 import { ALL_KINDS, DocKind, type SearchResult } from '@/core/search/engine';
-import { XtreamClient } from '@/providers/xtream';
+import { XtreamClient, xtreamServers } from '@/providers/xtream';
 import { parseBytes, unpackLibrary } from '@/workers/cache-codec';
 import type { EpgChannelRef, SearchBuildDocs, SourceEpg, SourceLibrary } from '@/workers/protocol';
 import { cacheState, deleteCache, loadCache, loadSmall, noteStage, saveCache, saveSmall, withTimeout } from './cache';
@@ -550,8 +550,71 @@ export function xtreamClient(sourceId: string): XtreamClient | null {
     c = new XtreamClient(src.config);
     clients.set(sourceId, c);
   }
-  // Play from the server that answered at the last update (a backup URL when the main one is down).
-  return c.useServer(lib && lib.server);
+  // The server that worked last in this session, else the one that answered at the last update
+  // (a backup URL when the main one was down).
+  return c.useServer(activeServer.get(sourceId) || (lib && lib.server));
+}
+
+/** Server URL that worked last, per source (switches when one goes down while watching). */
+const activeServer = new Map<string, string>();
+
+/** All server URLs of an Xtream source (main + backups), or [] for other sources. */
+export function sourceServers(sourceId: string): string[] {
+  const src = user.get().sources.find((s) => s.id === sourceId);
+  return src && src.config.type === 'xtream' ? xtreamServers(src.config) : [];
+}
+
+/**
+ * Moves an Xtream source to its next server URL (wrapping around). Returns the new position
+ * (1-based) and the count, or null when the source has a single URL.
+ */
+export function switchServer(sourceId: string, currentFailed = true): { n: number; total: number } | null {
+  const servers = sourceServers(sourceId);
+  const c = xtreamClient(sourceId);
+  if (!c || servers.length < 2) return null;
+  const i = Math.max(0, servers.indexOf(c.base));
+  if (currentFailed) failedAt.set(c.base, Date.now());
+  // Next URL that hasn't failed in the last minutes; if all have, the one that failed longest ago.
+  let pick = -1;
+  let oldest = Infinity;
+  for (let k = 1; k < servers.length; k++) {
+    const j = (i + k) % servers.length;
+    const f = failedAt.get(servers[j]) || 0;
+    if (Date.now() - f > FAILED_FOR) {
+      pick = j;
+      break;
+    }
+    if (f < oldest) {
+      oldest = f;
+      pick = j;
+    }
+  }
+  activeServer.set(sourceId, servers[pick]);
+  c.useServer(servers[pick]);
+  return { n: pick + 1, total: servers.length };
+}
+
+/** When a server URL last failed (a stream or an API call), so it isn't retried right away. */
+const failedAt = new Map<string, number>();
+const FAILED_FOR = 3 * 60 * 1000;
+
+/** Runs an Xtream API call, trying the other server URLs when it fails. */
+async function withServers<T>(sourceId: string, call: (c: XtreamClient) => Promise<T>): Promise<T> {
+  const c = xtreamClient(sourceId)!;
+  try {
+    return await call(c);
+  } catch (e) {
+    const servers = sourceServers(sourceId);
+    for (let k = 1; k < servers.length; k++) {
+      switchServer(sourceId);
+      try {
+        return await call(c);
+      } catch {
+        /* next one */
+      }
+    }
+    throw e;
+  }
 }
 
 export function streamUrl(item: Channel | Movie, liveFormat: 'ts' | 'm3u8' = 'ts'): string {
@@ -577,7 +640,7 @@ export async function movieDetails(movie: Movie): Promise<MovieDetails> {
   const cached = detailsCache.get(movie.key);
   if (cached) return cached;
   const c = xtreamClient(movie.sourceId);
-  const d: MovieDetails = c ? await c.movieDetails(movie).catch(() => ({})) : {};
+  const d: MovieDetails = c ? await withServers(movie.sourceId, (x) => x.movieDetails(movie)).catch(() => ({})) : {};
   if (!d.year && movie.year) d.year = movie.year;
   detailsCache.set(movie.key, d);
   return d;
@@ -588,7 +651,7 @@ export async function seriesDetails(s: Series): Promise<SeriesDetails> {
   if (cached) return cached;
   const c = xtreamClient(s.sourceId);
   let d: SeriesDetails;
-  if (c) d = await c.seriesDetails(s);
+  if (c) d = await withServers(s.sourceId, (x) => x.seriesDetails(s));
   else {
     const eps = (sourceLibs.get(s.sourceId)?.episodes || {})[s.key] || [];
     const seasons: number[] = [];
@@ -635,7 +698,7 @@ export async function fetchShortEpg(ch: Channel): Promise<Programme[]> {
   const local = programmes(ch);
   if (local.length) return local;
   const c = xtreamClient(ch.sourceId);
-  return c ? c.shortEpg(ch).catch(() => []) : [];
+  return c ? withServers(ch.sourceId, (x) => x.shortEpg(ch)).catch(() => []) : [];
 }
 
 // ---- Search -----------------------------------------------------------------------------------

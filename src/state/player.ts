@@ -6,7 +6,7 @@ import { avplayAvailable, AvPlayEngine } from '@/platform/player/avplay';
 import { Html5Engine } from '@/platform/player/html5';
 import type { PlayerEngine, PlayerStatus, Rect, Track } from '@/platform/player/types';
 import { setScreenSaver } from '@/platform/tv';
-import { episodeUrl, playableUrl, streamUrl } from './library';
+import { episodeUrl, playableUrl, sourceServers, streamUrl, switchServer } from './library';
 import { createStore } from './store';
 import { BUFFER_SECONDS, recordHistory, saveResume, user } from './user';
 
@@ -29,6 +29,8 @@ export interface PlayerState {
   /** true when the video plays in a small window (live preview) instead of full screen. */
   windowed: boolean;
   reconnecting: number;
+  /** Switched to a backup server URL ("trying backup URL n of total"). */
+  serverNote: { n: number; total: number } | null;
   engine: string;
 }
 
@@ -45,6 +47,7 @@ export const player = createStore<PlayerState>({
   textIndex: -1,
   windowed: false,
   reconnecting: 0,
+  serverNote: null,
   engine: '',
 });
 
@@ -56,13 +59,19 @@ let lastTime = -1;
 let watchdog: ReturnType<typeof setInterval> | undefined;
 let resumeTimer: ReturnType<typeof setInterval> | undefined;
 let triedAltFormat = false;
+/** Backup server URLs tried since the stream last played. */
+let serversTried = 0;
+/** Counts stream loads; errors are handled once per load. */
+let loadGen = 0;
+let handledGen = -1;
 
 const events = {
   status(s: PlayerStatus) {
     player.set({ status: s });
     if (s === 'playing') {
       lastProgressAt = Date.now();
-      player.set({ reconnecting: 0, error: '' });
+      serversTried = 0;
+      player.set({ reconnecting: 0, error: '', serverNote: null });
     }
     if (s === 'ended') onEnded();
   },
@@ -132,10 +141,11 @@ function resumeKey(target: PlaybackTarget): string | null {
 export async function play(target: PlaybackTarget, opts: { startAt?: number; windowed?: Rect | null } = {}): Promise<void> {
   saveProgress();
   triedAltFormat = false;
+  serversTried = 0;
   const e = getEngine();
   player.set({
     target, status: 'loading', time: 0, duration: 0, subtitle: '', error: '', audio: [], text: [],
-    audioIndex: -1, textIndex: -1, windowed: !!opts.windowed, reconnecting: 0,
+    audioIndex: -1, textIndex: -1, windowed: !!opts.windowed, reconnecting: 0, serverNote: null,
   });
   e.setRect(opts.windowed || null);
   currentUrl = urlFor(target);
@@ -150,6 +160,7 @@ export async function play(target: PlaybackTarget, opts: { startAt?: number; win
 async function load(startAt?: number) {
   const st = player.get();
   if (!st.target || !engine) return;
+  loadGen++;
   lastProgressAt = Date.now();
   lastTime = -1;
   try {
@@ -160,9 +171,32 @@ async function load(startAt?: number) {
   }
 }
 
+function sourceOf(target: PlaybackTarget): string {
+  return target.kind === 'live' ? target.channel.sourceId : target.kind === 'movie' ? target.movie.sourceId : target.series.sourceId;
+}
+
+/** Next backup server URL for this stream, if any is left untried. True when switched. */
+function tryNextServer(st: PlayerState): boolean {
+  if (!st.target) return false;
+  const sid = sourceOf(st.target);
+  const total = sourceServers(sid).length;
+  if (total < 2 || serversTried >= total - 1) return false;
+  const sw = switchServer(sid, true);
+  if (!sw) return false;
+  serversTried++;
+  triedAltFormat = false;
+  currentUrl = urlFor(st.target);
+  player.set({ status: 'buffering', serverNote: { n: sw.n, total: sw.total } });
+  load(st.target.kind !== 'live' && st.time > 5 ? st.time : undefined);
+  return true;
+}
+
 function onError(message: string) {
   const st = player.get();
   if (!st.target) return;
+  // One failure often arrives as two errors (media error + rejected play()): handle it once.
+  if (handledGen === loadGen) return;
+  handledGen = loadGen;
   // Live: an Xtream stream that fails as .ts often works as .m3u8 (and the other way round).
   if (st.target.kind === 'live' && !triedAltFormat && st.target.channel.sourceId && /\/live\//.test(currentUrl)) {
     triedAltFormat = true;
@@ -170,6 +204,8 @@ function onError(message: string) {
     load();
     return;
   }
+  // The server may be down: try the source's backup URLs before giving up.
+  if (tryNextServer(st)) return;
   if (st.target.kind === 'live' && st.reconnecting < 5) {
     reconnect();
     return;
@@ -181,6 +217,8 @@ function reconnect() {
   const st = player.get();
   if (!st.target) return;
   const n = st.reconnecting + 1;
+  // A live stream that keeps stalling: its server may be failing, move to a backup URL.
+  if (n >= 3 && tryNextServer(st)) return;
   player.set({ reconnecting: n, status: 'buffering' });
   setTimeout(() => {
     if (player.get().target === st.target) load(st.target && st.target.kind !== 'live' ? player.get().time : undefined);
