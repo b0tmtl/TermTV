@@ -89,6 +89,7 @@ jobs:
         with:
           tag_name: ${{ steps.tag.outputs.name }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
+          make_latest: true
           generate_release_notes: true
           files: build/TermTV.wgt
