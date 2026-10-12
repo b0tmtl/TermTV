@@ -4,15 +4,17 @@
 // the store only carries status and version counters that components subscribe to.
 
 import {
-  buildCategoryViews, isHidden, markKnown, sortItems, visibleCategories, type CategoryView, type ItemSort,
+  buildCategoryViews, dropHiddenCategories, isHidden, markKnown, sortItems, visibleCategories, type CategoryView, type ItemSort,
 } from '@/core/categories';
 import type { Category, Channel, Episode, Item, MediaKind, Movie, Programme, Series, SeriesDetails, MovieDetails, Source } from '@/core/models';
 import { ALL_KINDS, DocKind, type SearchResult } from '@/core/search/engine';
 import { XtreamClient } from '@/providers/xtream';
 import type { EpgChannelRef, SearchBuildDocs, SourceEpg, SourceLibrary } from '@/workers/protocol';
-import { cacheState, deleteCache, loadCache, noteStage, saveCache, withTimeout } from './cache';
+import { cacheState, deleteCache, loadCache, loadSmall, noteStage, saveCache, saveSmall, withTimeout } from './cache';
 import { createStore } from './store';
-import { updateCategoryPrefs, user } from './user';
+import { hiddenInEveryProfile, updateCategoryPrefs, user } from './user';
+import { toast } from '@/ui/ui-state';
+import { t } from '@/i18n';
 import { libraryWorker, searchWorker } from './workers';
 
 export interface LibraryStatus {
@@ -25,6 +27,8 @@ export interface LibraryStatus {
   searchReady: boolean;
   /** Startup step while the saved library loads: 'readCache' | 'decodeCache'. */
   stage?: string;
+  /** Home is showing the snapshot while the full library loads. */
+  partial?: boolean;
 }
 
 export const libraryState = createStore<LibraryStatus>({
@@ -46,6 +50,8 @@ let movies: Movie[] = [];
 let series: Series[] = [];
 const byKey = new Map<string, Item>();
 const byCategory = new Map<string, Item[]>();
+/** Titles not kept per category key (hidden categories, see dropHiddenCategories). */
+const skippedByCategory = new Map<string, number>();
 /** Search doc index -> item. */
 let docItems: Item[] = [];
 const docIndexByKey = new Map<string, number>();
@@ -60,6 +66,9 @@ function enabledSources(): Source[] {
 }
 
 function combine() {
+  // Keep showing the Home snapshot until a real library is there.
+  if (snapshot && !sourceLibs.size) return;
+  snapshot = null;
   const order = enabledSources().map((s) => s.id);
   categories = [];
   live = [];
@@ -67,10 +76,12 @@ function combine() {
   series = [];
   byKey.clear();
   byCategory.clear();
+  skippedByCategory.clear();
   for (const id of order) {
     const l = sourceLibs.get(id);
     if (!l) continue;
     categories = categories.concat(l.categories);
+    for (const c of l.categories) if (c.skipped) skippedByCategory.set(c.key, c.skipped);
     live = live.concat(l.live);
     movies = movies.concat(l.movies);
     series = series.concat(l.series);
@@ -87,9 +98,10 @@ function combine() {
   viewCache.clear();
   itemCache.clear();
   derivedCache.clear();
-  libraryState.set((s) => ({ version: s.version + 1, status: byKey.size ? 'ready' : Object.keys(s.refreshing).length ? 'loading' : 'empty' }));
+  libraryState.set((s) => ({ version: s.version + 1, partial: false, status: byKey.size ? 'ready' : Object.keys(s.refreshing).length ? 'loading' : 'empty' }));
+  scheduleSnapshot();
   rememberKnownCategories();
-  buildSearch();
+  scheduleSearch();
 }
 
 /** First time a profile sees the library, every category is "known" (only later ones are new). */
@@ -112,6 +124,7 @@ export async function initLibrary(): Promise<void> {
     return;
   }
   libraryState.set({ status: 'loading' });
+  if (!byKey.size) await showSnapshot();
   await Promise.all(
     sources.map(async (s) => {
       libraryState.set({ stage: 'readCache' });
@@ -144,11 +157,11 @@ export async function initLibrary(): Promise<void> {
   else if (!byKey.size) libraryState.set({ status: 'empty' });
 }
 
-/** Has the worker compress the last refresh, then stores it (in the background). */
-async function persist(store: 'library' | 'epg', sourceId: string): Promise<void> {
+/** Has the worker compress the last refresh (or `value`), then stores it (in the background). */
+async function persist(store: 'library' | 'epg', sourceId: string, value?: unknown): Promise<void> {
   try {
     noteStage(store, sourceId, 'compressing');
-    const res = await withTimeout(libraryWorker().call({ type: 'encode', store, key: sourceId }), 180000, 'Compressing');
+    const res = await withTimeout(libraryWorker().call({ type: 'encode', store, key: sourceId, value }), 180000, 'Compressing');
     if (res.type === 'encoded') await saveCache(store, sourceId, res.chunks);
   } catch (e) {
     if (store === 'library') cacheState.set((c) => ({ library: { ...c.library, [sourceId]: { ok: false, at: Date.now(), error: 'Compress: ' + String(e && (e as Error).message) } } }));
@@ -171,7 +184,8 @@ export async function refreshSource(source: Source): Promise<boolean> {
   if (!byKey.size) libraryState.set({ status: 'loading' });
   setStage('start');
   try {
-    const res = await libraryWorker().call({ type: 'refresh', source, proxy: devProxy() }, (p) => {
+    const skip = await hiddenInEveryProfile().catch(() => undefined);
+    const res = await libraryWorker().call({ type: 'refresh', source, proxy: devProxy(), skip }, (p) => {
       if (p.type === 'progress') setStage(p.stage, p.loaded, p.total);
     });
     if (res.type !== 'library' || !res.library) throw new Error('No data');
@@ -207,7 +221,7 @@ export async function refreshEpg(source: Source): Promise<void> {
     if (res.type === 'epg' && res.epg) {
       sourceEpgs.set(source.id, res.epg);
       libraryState.set((s) => ({ epgVersion: s.epgVersion + 1 }));
-      buildGuideSearch();
+      scheduleSearch();
       persist('epg', source.id);
     }
   } catch (e) {
@@ -227,7 +241,7 @@ export async function forgetSource(sourceId: string): Promise<void> {
 export function sourcesChanged(): void {
   combine();
   libraryState.set((s) => ({ epgVersion: s.epgVersion + 1 }));
-  buildGuideSearch();
+  scheduleSearch();
 }
 
 export function sourceLibrary(sourceId: string): SourceLibrary | undefined {
@@ -258,7 +272,7 @@ export function allViews(kind: MediaKind): CategoryView[] {
   let v = viewCache.get(ck);
   if (!v) {
     v = buildCategoryViews(categories, kind, enabledSources().map((s) => s.id), merge).filter((view) =>
-      view.keys.some((k) => (byCategory.get(k) || []).length > 0),
+      view.keys.some((k) => (byCategory.get(k) || []).length > 0 || (skippedByCategory.get(k) || 0) > 0),
     );
     viewCache.set(ck, v);
   }
@@ -332,8 +346,61 @@ export function viewOfItem(item: Item): CategoryView | undefined {
 /** Number of items in a view, without sorting them. */
 export function countInView(view: CategoryView): number {
   let n = 0;
-  for (const k of view.keys) n += (byCategory.get(k) || []).length;
+  for (const k of view.keys) n += (byCategory.get(k) || []).length + (skippedByCategory.get(k) || 0);
   return n;
+}
+
+/** Sources whose titles in this view were not kept (the view was hidden when they loaded). */
+function sourcesWithSkipped(view: CategoryView): string[] {
+  const out: string[] = [];
+  for (const k of view.keys) {
+    if (!skippedByCategory.get(k)) continue;
+    const sid = k.slice(0, k.indexOf(':'));
+    if (out.indexOf(sid) < 0) out.push(sid);
+  }
+  return out;
+}
+
+/** Hiding categories: drop their titles now (and save), instead of at the next update. */
+async function dropNewlyHidden(): Promise<void> {
+  if (!user.get().app.skipHidden) return;
+  const skip = await hiddenInEveryProfile().catch(() => undefined);
+  if (!skip) return;
+  let changed = false;
+  for (const src of enabledSources()) {
+    const l = sourceLibs.get(src.id);
+    if (!l || libraryState.get().refreshing[src.id]) continue;
+    const copy: SourceLibrary = { ...l, categories: l.categories.map((c) => ({ ...c })), episodes: l.episodes ? { ...l.episodes } : undefined };
+    if (dropHiddenCategories(copy, src.id, skip) > 0) {
+      sourceLibs.set(src.id, copy);
+      persist('library', src.id, copy);
+      changed = true;
+    }
+  }
+  if (changed) combine();
+}
+
+function categoriesChanged(): void {
+  reloadUnhidden();
+  dropNewlyHidden();
+}
+
+/** A category whose titles were dropped is shown again: load the source again to get them back. */
+function reloadUnhidden(): void {
+  if (!skippedByCategory.size) return;
+  const prefs = user.get().data.categories;
+  const want: string[] = [];
+  for (const kind of ['live', 'movie', 'series'] as MediaKind[]) {
+    for (const v of allViews(kind)) {
+      if (isHidden(v, prefs[kind])) continue;
+      for (const sid of sourcesWithSkipped(v)) if (want.indexOf(sid) < 0) want.push(sid);
+    }
+  }
+  const busy = libraryState.get().refreshing;
+  const sources = enabledSources().filter((s) => want.indexOf(s.id) >= 0 && !busy[s.id]);
+  if (!sources.length) return;
+  toast(t('categories.reloading'));
+  refreshSources(sources);
 }
 
 /** Every browsable item of a kind ("All"), in category order. */
@@ -379,6 +446,7 @@ export function counts(): Record<MediaKind, number> {
 
 /** Items newest first ("Recently added" rows). */
 export function recentlyAdded(kind: 'movie' | 'series', limit = 40): Item[] {
+  if (snapshot) return snapshotItems(kind === 'movie' ? snapshot.newMovies : snapshot.newSeries).slice(0, limit);
   const all = derived(`new|${kind}`, () => {
     const list: Item[] = kind === 'movie' ? movies : series;
     return list
@@ -403,6 +471,7 @@ function hiddenItem(item: Item): boolean {
 
 /** Suggestions from watch history: unwatched titles from the categories this profile watches most. */
 export function suggestions(limit = 30): Item[] {
+  if (snapshot) return snapshotItems(snapshot.suggested).slice(0, limit);
   return derived(`suggest|${limit}`, () => computeSuggestions(limit));
 }
 
@@ -560,6 +629,37 @@ export const SCOPE_KINDS: Record<SearchScope, number> = {
 let guideDocs: Array<{ channel: Channel; programme: Programme }> = [];
 let searchBuild = 0;
 
+/**
+ * Building the search indexes walks every title and guide entry on the UI thread, and right after
+ * the library appears that made the first seconds of navigation sluggish on TVs. So it waits until
+ * the remote has been quiet for a moment, or until search is actually needed.
+ */
+let searchTimer: ReturnType<typeof setTimeout> | undefined;
+let searchPending = false;
+let lastKeyAt = 0;
+if (typeof document !== 'undefined') document.addEventListener('keydown', () => (lastKeyAt = Date.now()), true);
+
+function scheduleSearch(): void {
+  searchPending = true;
+  clearTimeout(searchTimer);
+  const tick = () => {
+    if (!searchPending) return;
+    if (Date.now() - lastKeyAt < 2500) {
+      searchTimer = setTimeout(tick, 1000);
+      return;
+    }
+    flushSearch();
+  };
+  searchTimer = setTimeout(tick, 3000);
+}
+
+function flushSearch(): void {
+  if (!searchPending) return;
+  searchPending = false;
+  clearTimeout(searchTimer);
+  buildSearch();
+}
+
 function buildSearch() {
   docItems = (live as Item[]).concat(movies, series);
   docIndexByKey.clear();
@@ -653,6 +753,7 @@ export interface SearchOutput {
 }
 
 export async function search(q: string, scope: SearchScope, limit = 200): Promise<SearchOutput> {
+  flushSearch();
   const out: SearchOutput = { items: [], guide: [], totals: { live: 0, movie: 0, series: 0, programme: 0 }, tookMs: 0 };
   if (!q.trim()) return out;
   const wantGuide = scope === 'all' || scope === 'guide';
@@ -688,6 +789,7 @@ let lastData = user.get().data;
 let lastApp = user.get().app;
 let lastUnlocked = user.get().unlocked;
 let filterTimer: ReturnType<typeof setTimeout> | undefined;
+let unhideTimer: ReturnType<typeof setTimeout> | undefined;
 user.subscribe((s) => {
   if (s.data.categories !== lastData.categories) {
     if (
@@ -697,6 +799,11 @@ user.subscribe((s) => {
     )
       viewCache.clear();
     itemCache.clear();
+  }
+  if (s.data.favorites !== lastData.favorites || s.data.history !== lastData.history || s.data.lists !== lastData.lists) scheduleSnapshot();
+  if (s.data.categories !== lastData.categories) {
+    clearTimeout(unhideTimer);
+    unhideTimer = setTimeout(categoriesChanged, 2000);
   }
   if (s.data !== lastData || s.app !== lastApp || s.unlocked !== lastUnlocked) {
     derivedCache.clear();
@@ -716,9 +823,83 @@ user.subscribe((s) => {
  */
 export async function variantsOf(item: Item): Promise<Item[]> {
   if (item.kind === 'live') return [];
+  flushSearch();
   const doc = docIndexByKey.get(item.key);
   if (doc === undefined) return [];
   const res = await searchWorker().call({ type: 'variants', doc }).catch(() => null);
   if (!res || res.type !== 'variants') return [];
   return res.docs.map((d) => docItems[d]).filter((i): i is Item => !!i && i.kind === item.kind);
+}
+
+// ---- Home snapshot ----------------------------------------------------------------------------
+// The titles Home shows (continue watching, favorites, lists, suggestions, new titles) are saved in
+// a small file. At launch Home appears from it in a moment, while the full library (which can take
+// 10 s or more to read on an old TV) loads behind it. Other screens wait for the full library.
+
+interface HomeSnapshot {
+  v: 1;
+  savedAt: number;
+  items: Item[];
+  suggested: string[];
+  newMovies: string[];
+  newSeries: string[];
+}
+
+let snapshot: HomeSnapshot | null = null;
+let snapshotTimer: ReturnType<typeof setTimeout> | undefined;
+
+const snapshotName = () => 'home-' + (user.get().activeProfileId || 'default');
+
+function snapshotItems(keys: string[]): Item[] {
+  const out: Item[] = [];
+  for (const k of keys) {
+    const it = byKey.get(k);
+    if (it) out.push(it);
+  }
+  return out;
+}
+
+async function showSnapshot(): Promise<void> {
+  const snap = await loadSmall<HomeSnapshot>(snapshotName());
+  if (!snap || snap.v !== 1 || !snap.items || !snap.items.length || byKey.size) return;
+  snapshot = snap;
+  for (const it of snap.items) byKey.set(it.key, it);
+  libraryState.set((s) => ({ status: 'ready', partial: true, version: s.version + 1 }));
+}
+
+function scheduleSnapshot(): void {
+  if (snapshot || !byKey.size) return;
+  clearTimeout(snapshotTimer);
+  snapshotTimer = setTimeout(() => {
+    saveSnapshot().catch((e) => console.warn('home snapshot failed', e));
+  }, 8000);
+}
+
+async function saveSnapshot(): Promise<void> {
+  if (snapshot || !byKey.size) return;
+  const s = user.get();
+  const keys: string[] = [];
+  const add = (k: string) => {
+    if (keys.indexOf(k) < 0 && byKey.has(k)) keys.push(k);
+  };
+  s.data.history.slice(0, 60).forEach((h) => add(h.key));
+  s.data.favorites.slice(0, 300).forEach(add);
+  s.data.lists.forEach((l) => l.items.slice(0, 40).forEach(add));
+  const suggested = suggestions(40).map((i) => i.key);
+  const newMovies = recentlyAdded('movie', 40).map((i) => i.key);
+  const newSeries = recentlyAdded('series', 40).map((i) => i.key);
+  suggested.concat(newMovies, newSeries).forEach(add);
+  // Never put parental-locked titles in a file that is read before any PIN is asked.
+  const pin = !!s.app.parentalPin;
+  const items = keys
+    .map((k) => byKey.get(k)!)
+    .filter((it) => {
+      if (!pin) return true;
+      const v = viewOfItem(it);
+      return !(v && isViewLocked(v));
+    });
+  const ok = new Set(items.map((i) => i.key));
+  const only = (l: string[]) => l.filter((k) => ok.has(k));
+  const snap: HomeSnapshot = { v: 1, savedAt: Date.now(), items, suggested: only(suggested), newMovies: only(newMovies), newSeries: only(newSeries) };
+  await saveSmall(snapshotName(), snap);
 }

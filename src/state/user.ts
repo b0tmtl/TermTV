@@ -3,7 +3,7 @@
 
 import { defaultCategoryPrefs, type CategoryPrefs } from '@/core/categories';
 import type { MediaKind, Source } from '@/core/models';
-import { dbGet, dbPut, rebuildDatabase } from '@/platform/db';
+import { dbGet, dbKeys, dbPut, rebuildDatabase } from '@/platform/db';
 import { createStore } from './store';
 
 export type ThemeId = 'midnight' | 'matrix' | 'amber' | 'purple' | 'synthwave' | 'paper';
@@ -84,6 +84,8 @@ export interface AppSettings {
   lastProfileId?: string;
   /** New categories after a refresh: shown or hidden automatically. */
   newCategories: 'show' | 'hide';
+  /** Don't keep the titles of categories hidden in every profile (smaller, faster library). */
+  skipHidden: boolean;
 }
 
 export function defaultSettings(): ProfileSettings {
@@ -116,7 +118,7 @@ export function defaultProfileData(): ProfileData {
 }
 
 export function defaultAppSettings(): AppSettings {
-  return { language: 'en', parentalPin: '', lockMode: 'hide', refreshOnLaunch: true, epgHoursAhead: 24, epgHoursBack: 2, newCategories: 'show' };
+  return { language: 'en', parentalPin: '', lockMode: 'hide', refreshOnLaunch: true, epgHoursAhead: 24, epgHoursBack: 2, newCategories: 'show', skipHidden: true };
 }
 
 export interface UserState {
@@ -160,6 +162,26 @@ function withDefaults(d: Partial<ProfileData> | undefined): ProfileData {
   };
 }
 
+/** The orphaned `profile:<id>` record with the most recent activity, if any. */
+async function lastUsedProfileId(): Promise<string | undefined> {
+  const keys = (await dbKeys('kv')).filter((k) => k.indexOf('profile:') === 0);
+  let best: string | undefined;
+  let bestScore = -1;
+  for (const k of keys) {
+    const d = await dbGet<Partial<ProfileData>>('kv', k).catch(() => undefined);
+    if (!d) continue;
+    const last = d.history && d.history.length ? d.history[0].at || 0 : 0;
+    const size = (d.favorites ? d.favorites.length : 0) + (d.history ? d.history.length : 0);
+    const hidden = d.categories ? ['live', 'movie', 'series'].reduce((n, kind) => n + (((d.categories as any)[kind] || {}).hidden || []).length, 0) : 0;
+    const score = last || (size + hidden > 0 ? size + hidden : -1);
+    if (score > bestScore) {
+      bestScore = score;
+      best = k.slice('profile:'.length);
+    }
+  }
+  return best;
+}
+
 export async function loadUser(): Promise<void> {
   const [sources, profiles, app] = await Promise.all([
     dbGet<Source[]>('kv', 'sources'),
@@ -167,7 +189,12 @@ export async function loadUser(): Promise<void> {
     dbGet<AppSettings>('kv', 'app'),
   ]);
   let list = profiles || [];
-  if (!list.length) list = [{ id: uid(), name: 'Me', avatar: 0 }];
+  if (!list.length) {
+    // Before 0.1.12 the automatic "Me" profile was never saved: each launch made a new one and
+    // favorites, history and category choices were left under an old id. Pick that data up again.
+    list = [{ id: (await lastUsedProfileId().catch(() => undefined)) || uid(), name: 'Me', avatar: 0 }];
+    await dbPut('kv', 'profiles', list).catch((e) => console.warn('save profiles failed', e));
+  }
   user.set({ sources: sources || [], profiles: list, app: { ...defaultAppSettings(), ...app }, loaded: true });
 }
 
@@ -314,4 +341,26 @@ export async function importBackup(b: Backup): Promise<void> {
   await dbPut('kv', 'profiles', b.profiles);
   await dbPut('kv', 'app', { ...defaultAppSettings(), ...b.settings });
   for (const id of Object.keys(b.data || {})) await dbPut('kv', `profile:${id}`, b.data[id]);
+}
+
+/**
+ * Category ids hidden in every profile, per kind: their titles don't need to be kept at all.
+ * (A category one profile hides may be another's favorite.)
+ */
+export async function hiddenInEveryProfile(): Promise<Record<MediaKind, string[]>> {
+  const s = user.get();
+  const out: Record<MediaKind, string[]> = { live: [], movie: [], series: [] };
+  if (!s.app.skipHidden) return out;
+  const all: ProfileData[] = [];
+  for (const p of s.profiles) {
+    if (p.id === s.activeProfileId) all.push(s.data);
+    else all.push(withDefaults(await dbGet<ProfileData>('kv', `profile:${p.id}`).catch(() => undefined)));
+  }
+  if (!all.length) all.push(s.data);
+  const rest = (id: string) => id.slice(id.indexOf(':') + 1);
+  for (const kind of ['live', 'movie', 'series'] as MediaKind[]) {
+    const first = all[0].categories[kind].hidden;
+    out[kind] = first.filter((id) => all.every((d) => d.categories[kind].hidden.some((h) => h === id || rest(h) === rest(id))));
+  }
+  return out;
 }

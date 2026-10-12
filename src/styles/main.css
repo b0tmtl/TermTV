@@ -76,6 +76,12 @@ img { display: block; }
   z-index: 20; padding-top: 28px; transition: width .15s ease-out; overflow: hidden;
 }
 .sidebar.expanded { width: 320px; box-shadow: 20px 0 60px rgba(0, 0, 0, .5); }
+/* On the TV, animating the width relayouts the sidebar every frame and the big blurred shadow is
+   slow to paint: expand instantly, with a plain border instead. */
+html.tv .sidebar, html.tv .sidebar .logo .word { transition: none; }
+html.tv .sidebar.expanded { box-shadow: none; border-right-color: var(--line2); }
+html.tv .card[data-focused] .art { box-shadow: 0 0 0 4px var(--focus-glow); }
+html.tv .card .art { transition: none; }
 .sidebar .logo { height: 70px; padding: 0 22px; margin-bottom: 26px; display: flex; align-items: center; white-space: nowrap; }
 .sidebar .logo .mark { width: 66px; height: 66px; border-radius: 14px; border: 2px solid var(--accent); color: var(--accent); font-weight: 700; font-size: 22px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .sidebar .logo .word { margin-left: 18px; font-weight: 700; font-size: 30px; opacity: 0; transition: opacity .15s; }

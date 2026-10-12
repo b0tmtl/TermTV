@@ -117,7 +117,8 @@
     "seeAll": "See all",
     "startHint": "Watch something and it will show up here: favorites, lists and where you left off.",
     "readingCache": "Reading your saved list…",
-    "decodingCache": "Unpacking your saved list…"
+    "decodingCache": "Unpacking your saved list…",
+    "loadingRest": "Loading the rest of your library…"
   },
   "live": {
     "favorites": "Favorites",
@@ -229,7 +230,7 @@
     "showMatching": "Show matching",
     "hideMatching": "Hide matching",
     "filter": "Filter",
-    "groups": "Groups (detected prefixes): OK hides or shows the whole group",
+    "groups": "Groups (start or end of the name, like \"VOD\" or \"[FR]\"): OK hides or shows the whole group",
     "hideGroup": "Hide every {prefix} category",
     "counts": "{total} categories · {hidden} hidden",
     "new": "NEW",
@@ -246,7 +247,8 @@
     "movingHint": "▲ ▼ move the category · OK or Back to drop it",
     "hintToggle": "show / hide",
     "hintMove": "Move",
-    "hintLock": "Lock"
+    "hintLock": "Lock",
+    "reloading": "Loading the categories you showed again…"
   },
   "parental": {
     "intro": "Lock categories with a PIN. Locked categories are hidden, or shown and PIN-protected, depending on the mode.",
@@ -359,7 +361,11 @@
     },
     "profiles": "Profiles",
     "profilesDesc": "Add, rename or protect profiles with a PIN",
-    "translateHelp": "Want TermTV in your language? Translations are simple JSON files: see CONTRIBUTING.md on GitHub."
+    "translateHelp": "Want TermTV in your language? Translations are simple JSON files: see CONTRIBUTING.md on GitHub.",
+    "skipHidden": "Don't load hidden categories",
+    "skipHiddenDesc": "Titles of categories hidden in every profile are not downloaded or saved: faster start, less memory",
+    "skipHiddenOn": "Applies at the next update of your sources",
+    "skipHiddenOff": "Hidden categories come back at the next update of your sources"
   },
   "theme": {
     "midnight": "Midnight Shell",

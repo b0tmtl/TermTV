@@ -1,6 +1,6 @@
 // Messages between the main thread and the workers.
 
-import type { Category, Channel, Episode, Movie, Programme, Series, Source } from '@/core/models';
+import type { Category, Channel, Episode, MediaKind, Movie, Programme, Series, Source } from '@/core/models';
 import type { SearchResult } from '@/core/search/engine';
 import type { XtreamAccount } from '@/providers/xtream';
 
@@ -35,9 +35,9 @@ export interface EpgChannelRef {
 }
 
 export type LibraryRequest =
-  | { type: 'refresh'; id: number; source: Source; proxy?: string }
+  | { type: 'refresh'; id: number; source: Source; proxy?: string; skip?: Partial<Record<MediaKind, string[]>> }
   | { type: 'decode'; id: number; store: 'library' | 'epg'; chunks: ArrayBuffer[] }
-  | { type: 'encode'; id: number; store: 'library' | 'epg'; key: string }
+  | { type: 'encode'; id: number; store: 'library' | 'epg'; key: string; value?: unknown }
   | { type: 'epg'; id: number; source: Source; urls: string[]; channels: EpgChannelRef[]; hoursBack: number; hoursAhead: number; proxy?: string };
 
 export type LibraryResponse =

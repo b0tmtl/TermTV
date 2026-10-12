@@ -18,6 +18,8 @@ declare const tizen: any;
 declare const webapis: any;
 
 export const isTizen = typeof (window as any).tizen !== 'undefined';
+// Lets the CSS drop effects that are slow on TV GPUs (see `html.tv` in main.css).
+if (isTizen) document.documentElement.className += ' tv';
 
 /** Remote keys that must be registered to receive events (others arrive by default). */
 const TIZEN_KEYS = [

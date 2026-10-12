@@ -117,3 +117,40 @@ describe('anyIdMatches', () => {
     for (const v of views) expect(anyIdMatches(stored, v)).toBe(stored.some((s) => idMatches(s, v)));
   });
 });
+
+describe('suffix groups', () => {
+  it('groups VOD - X [FR] by prefix and by trailing tag', async () => {
+    const { splitSuffix } = await import('@/core/normalize');
+    expect(splitSuffix('VOD - ACTION [MULTISUB]')).toBe('MULTISUB');
+    expect(splitSuffix('SRS - DRAMA [fr]')).toBe('FR');
+    expect(splitSuffix('Action (EN)')).toBe('EN');
+    expect(splitSuffix('Kids | VOSTFR')).toBe('VOSTFR');
+    expect(splitSuffix('Movies (2023)')).toBe('');
+    expect(splitSuffix('X-Men')).toBe('');
+    expect(splitSuffix('VOD - ACTION')).toBe('');
+    expect(splitSuffix('VOD - KIDS')).toBe('');
+    expect(splitSuffix('Drama - FR')).toBe('FR');
+    expect(splitSuffix('Action')).toBe('');
+    const names = ['VOD - ACTION [MULTISUB]', 'VOD - ACTION [FR]', 'VOD - ACTION [EN]', 'VOD - DRAMA [FR]', 'VOD - DRAMA [EN]', 'VOD - KIDS [MULTISUB]'];
+    const cats: Category[] = names.map((name, i) => ({ key: 's:movie:' + i, sourceId: 's', kind: 'movie', providerId: String(i), name, order: i }));
+    const views = buildCategoryViews(cats, 'movie', ['s'], true);
+    const groups = prefixGroups(views, defaultCategoryPrefs('movie'));
+    expect(groups.map((g) => [g.prefix, g.ids.length])).toEqual([['VOD', 6], ['[EN]', 2], ['[FR]', 2], ['[MULTISUB]', 2]]);
+  });
+});
+
+describe('dropHiddenCategories', () => {
+  it('drops titles of hidden categories and remembers how many', async () => {
+    const { dropHiddenCategories } = await import('@/core/categories');
+    const cat = (id: string, name: string): Category => ({ key: `s:movie:${id}`, sourceId: 's', kind: 'movie', providerId: id, name, order: Number(id) });
+    const mv = (id: number, c: string) => ({ key: `s:movie:${id}`, sourceId: 's', kind: 'movie' as const, providerId: String(id), name: 'M' + id, categoryKey: `s:movie:${c}`, order: id });
+    const lib = { categories: [cat('1', 'VOD - ACTION [FR]'), cat('2', 'VOD - ACTION [EN]')], live: [], movies: [mv(1, '1'), mv(2, '1'), mv(3, '2')], series: [] };
+    // Hidden as a merged id (what "merge same names" stores) still matches the source's category.
+    const n = dropHiddenCategories(lib, 's', { movie: ['*:movie:vod action fr'] });
+    expect(n).toBe(2);
+    expect(lib.movies.map((m) => m.providerId)).toEqual(['3']);
+    expect(lib.categories[0].skipped).toBe(2);
+    expect(lib.categories[1].skipped).toBeUndefined();
+    expect(dropHiddenCategories(lib, 's', {})).toBe(0);
+  });
+});

@@ -25,6 +25,7 @@ function cardKeys(item: Item) {
 export function HomeScreen() {
   const status = useStore(libraryState, (s) => s.status);
   const stage = useStore(libraryState, (s) => s.stage);
+  const partial = useStore(libraryState, (s) => !!s.partial);
   useStore(libraryState, (s) => s.version);
   useStore(libraryState, (s) => s.epgVersion);
   const refreshing = useStore(libraryState, (s) => s.refreshing);
@@ -112,6 +113,12 @@ export function HomeScreen() {
   return (
     <div class="screen-pad rows" data-scroll="y" data-scroll-pad="160" style={{ height: '100%' }}>
       <Prompt path="~/home" cmd="./init.sh" />
+      {partial && (
+        <div class="dim" style={{ fontSize: 22, margin: '-6px 0 14px' }}>
+          <span class="spinner" style={{ width: 22, height: 22, marginRight: 14, verticalAlign: 'middle' }} />
+          {t('home.loadingRest')}
+        </div>
+      )}
       {continueItems.length > 0 && (
         <Row path="~/continue" cmd="ls" id={rid()}>
           {continueItems.map(({ item, progress }) => (

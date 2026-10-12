@@ -11,7 +11,7 @@ import { t } from '@/i18n';
 import { focusById, focusable } from '@/navigation/focus';
 import { replace } from '@/navigation/router';
 import type { KeyInfo } from '@/platform/tv';
-import { allViews, isViewLocked, itemsInView, libraryState } from '@/state/library';
+import { allViews, isViewLocked, countInView, libraryState } from '@/state/library';
 import { useStore } from '@/state/store';
 import { updateCategoryPrefs, updateData, user } from '@/state/user';
 import { Prompt } from '@/ui/Cards';
@@ -39,7 +39,7 @@ export function CategoriesScreen({ kind }: { kind: MediaKind }) {
   const hiddenCount = views.filter((v) => isHidden(v, prefs)).length;
   const counts = useMemo(() => {
     const m: Record<string, number> = {};
-    for (const v of views) m[v.id] = itemsInView(v).length;
+    for (const v of views) m[v.id] = countInView(v);
     return m;
   }, [views]);
 
@@ -77,6 +77,9 @@ export function CategoriesScreen({ kind }: { kind: MediaKind }) {
       { label: isViewLocked(v) ? t('parental.unlockCategory') : t('parental.lockCategory'), onSelect: () => toggleLock(v) },
       ...(v.prefix
         ? [{ label: t('categories.hideGroup', { prefix: v.prefix }), onSelect: () => toggleGroup(views.filter((x) => x.prefix === v.prefix).map((x) => x.id), true) }]
+        : []),
+      ...(v.suffix
+        ? [{ label: t('categories.hideGroup', { prefix: '[' + v.suffix + ']' }), onSelect: () => toggleGroup(views.filter((x) => x.suffix === v.suffix).map((x) => x.id), true) }]
         : []),
     ]);
 
@@ -154,7 +157,7 @@ export function CategoriesScreen({ kind }: { kind: MediaKind }) {
             {groups.map((g) => {
               const allHidden = g.hiddenCount === g.ids.length;
               return (
-                <span key={g.prefix} class={'chip' + (allHidden ? '' : ' active')} {...focusable({ onEnter: () => toggleGroup(g.ids, !allHidden) })}>
+                <span key={(g.type || 'prefix') + g.prefix} class={'chip' + (allHidden ? '' : ' active')} {...focusable({ onEnter: () => toggleGroup(g.ids, !allHidden) })}>
                   <Glyph n={allHidden ? 'box' : g.hiddenCount ? 'boxHalf' : 'boxCheck'} gap />{g.prefix}
                   <span class="n">{g.ids.length - g.hiddenCount}/{g.ids.length}</span>
                 </span>

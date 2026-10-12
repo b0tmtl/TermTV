@@ -38,6 +38,8 @@ export interface Category {
   name: string;
   /** Position in the provider's list. */
   order: number;
+  /** Titles not kept because the category is hidden (see "Don't load hidden categories"). */
+  skipped?: number;
 }
 
 interface BaseItem {

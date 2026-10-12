@@ -2,6 +2,7 @@
 // IndexedDB so the next launch starts instantly.
 
 import { Gunzip } from 'fflate';
+import { dropHiddenCategories } from '@/core/categories';
 import { normalizeText } from '@/core/normalize';
 import type { Programme, Source } from '@/core/models';
 import { decode, encode, packLibrary, unpackLibrary } from './cache-codec';
@@ -68,7 +69,7 @@ async function handle(req: LibraryRequest) {
     }
     case 'encode': {
       const k = pendingKey(req.store, req.key);
-      const value = pending.get(k);
+      const value = req.value || pending.get(k);
       pending.delete(k);
       const chunks = value ? encodeForCache(req.store, value) : [];
       post({ type: 'encoded', id: req.id, chunks }, chunks);
@@ -77,6 +78,7 @@ async function handle(req: LibraryRequest) {
     case 'refresh': {
       useProxy(req.proxy);
       const lib = await refresh(req.source, req.id);
+      if (req.skip) dropHiddenCategories(lib, lib.sourceId, req.skip);
       // Show it right away; compressing and saving takes a few seconds on a TV.
       pending.set(pendingKey('library', lib.sourceId), lib);
       post({ type: 'library', id: req.id, library: lib });

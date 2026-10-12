@@ -175,6 +175,16 @@ function SourcesPane() {
         value={<Toggle on={user.get().app.refreshOnLaunch} />}
         onEnter={() => updateApp({ refreshOnLaunch: !user.get().app.refreshOnLaunch })}
       />
+      <Setting
+        label={t('settings.skipHidden')}
+        desc={t('settings.skipHiddenDesc')}
+        value={<Toggle on={user.get().app.skipHidden} />}
+        onEnter={() => {
+          const on = !user.get().app.skipHidden;
+          updateApp({ skipHidden: on });
+          toast(on ? t('settings.skipHiddenOn') : t('settings.skipHiddenOff'));
+        }}
+      />
     </div>
   );
 }

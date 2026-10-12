@@ -221,3 +221,30 @@ export async function testStorage(): Promise<string[]> {
   lines.push('Old cache records in browser storage: ' + keys.length);
   return lines;
 }
+
+// ---- Small JSON records (the Home snapshot) -----------------------------------------------------
+// A file on the TV (IndexedDB's quota is shared with settings), IndexedDB elsewhere.
+
+export async function saveSmall(name: string, value: unknown): Promise<void> {
+  const text = JSON.stringify(value);
+  if (fileStoreAvailable()) {
+    const bytes = new TextEncoder().encode(text);
+    await withTimeout(writeFile(name + '.json', [bytes.buffer as ArrayBuffer]), 30000, 'Writing ' + name);
+    return;
+  }
+  await dbPut('kv', 'small:' + name, text);
+}
+
+export async function loadSmall<T>(name: string): Promise<T | undefined> {
+  try {
+    if (fileStoreAvailable()) {
+      const buf = await withTimeout(readFile(name + '.json'), 15000, 'Reading ' + name);
+      return buf && buf.byteLength ? (JSON.parse(new TextDecoder('utf-8').decode(new Uint8Array(buf))) as T) : undefined;
+    }
+    const text = await dbGet<string>('kv', 'small:' + name);
+    return text ? (JSON.parse(text) as T) : undefined;
+  } catch (e) {
+    console.warn('loadSmall failed', name, e);
+    return undefined;
+  }
+}

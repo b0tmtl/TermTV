@@ -3,6 +3,7 @@ import { setLanguage, t } from '@/i18n';
 import { dispatchKey, focusById, focusFirst, focusInto, onFocusChange, setGlobalHandler } from '@/navigation/focus';
 import { back, currentRoute, goSection, router, type Route } from '@/navigation/router';
 import { exitApp, mapKey, registerKeys } from '@/platform/tv';
+import { libraryState } from '@/state/library';
 import { player, stop } from '@/state/player';
 import { useStore } from '@/state/store';
 import { user } from '@/state/user';
@@ -24,7 +25,22 @@ import { VodScreen } from '@/screens/Vod';
 
 const NO_SIDEBAR = ['profiles', 'welcome', 'addSource', 'player', 'details'];
 
-function renderRoute(r: Route) {
+/** Screens that need the full library (while Home shows its snapshot). */
+const NEEDS_LIBRARY = ['live', 'guide', 'vod', 'search', 'categories', 'list'];
+
+function LibraryLoading() {
+  return (
+    <div class="screen-pad">
+      <div style={{ fontSize: 28, marginTop: 60 }}>
+        <span class="spinner" style={{ marginRight: 24 }} />
+        {t('home.loading')}
+      </div>
+    </div>
+  );
+}
+
+function renderRoute(r: Route, partial?: boolean) {
+  if (partial && NEEDS_LIBRARY.indexOf(r.name) >= 0) return <LibraryLoading />;
   switch (r.name) {
     case 'profiles': return <ProfilesScreen />;
     case 'welcome': return <WelcomeScreen />;
@@ -49,6 +65,7 @@ export function App() {
   const dialogs = useStore(ui, (s) => s.dialogs);
   const toastMsg = useStore(ui, (s) => s.toast);
   const playing = useStore(player, (s) => (s.target ? (s.windowed ? 'window' : 'full') : 'none'));
+  const partial = useStore(libraryState, (s) => !!s.partial);
   const entry = stack[stack.length - 1];
   const route = entry.route;
   const screenRef = useRef<HTMLDivElement>(null);
@@ -76,7 +93,8 @@ export function App() {
 
   // Each new screen: restore focus where it was, or focus its default element.
   // Keyed on the screen itself, not the entry: screens update their route params as you browse.
-  const screenKey = stack.length + ':' + route.name + ('kind' in route ? ':' + route.kind : '');
+  const screenKey =
+    stack.length + ':' + route.name + ('kind' in route ? ':' + route.kind : '') + (partial && NEEDS_LIBRARY.indexOf(route.name) >= 0 ? ':wait' : '');
   useLayoutEffect(() => {
     const root = screenRef.current;
     if (!root || hasDialog()) return;
@@ -93,7 +111,7 @@ export function App() {
       {backdrop && <div class="backdrop" />}
       {showSidebar && <Sidebar route={route} />}
       <div class={'screen' + (showSidebar ? '' : ' full')} ref={screenRef} data-focus-memory="" key={screenKey}>
-        {renderRoute(route)}
+        {renderRoute(route, partial)}
       </div>
       {dialogs.map((d) => (
         <div key={d.id}>{d.render(() => ui.set((s) => ({ dialogs: s.dialogs.filter((x) => x.id !== d.id) })))}</div>

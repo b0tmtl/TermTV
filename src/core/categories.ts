@@ -2,7 +2,7 @@
 // across playlist refreshes (providers often renumber category IDs, names are more stable).
 
 import type { Category, Item, MediaKind } from './models';
-import { naturalCompare, normalizeText, sortKey, splitPrefix } from './normalize';
+import { naturalCompare, normalizeText, sortKey, splitPrefix, splitSuffix } from './normalize';
 
 export type CategorySort = 'provider' | 'az' | 'za' | 'custom' | 'mostWatched';
 export type ItemSort = 'provider' | 'az' | 'za' | 'number' | 'added' | 'year' | 'rating' | 'recent';
@@ -41,6 +41,8 @@ export interface CategoryView {
   name: string;
   /** Detected prefix ("US", "FR"...), empty when none. */
   prefix: string;
+  /** Detected trailing tag ("MULTISUB", "FR"...), empty when none. */
+  suffix?: string;
   /** Underlying provider category keys. */
   keys: string[];
   sourceIds: string[];
@@ -68,7 +70,7 @@ export function buildCategoryViews(
     const rank = srcIdx * 1_000_000 + c.order;
     let v = byId.get(id);
     if (!v) {
-      v = { id, kind, name: c.name.trim(), prefix: splitPrefix(c.name).prefix, keys: [], sourceIds: [], providerRank: rank };
+      v = { id, kind, name: c.name.trim(), prefix: splitPrefix(c.name).prefix, suffix: splitSuffix(c.name), keys: [], sourceIds: [], providerRank: rank };
       byId.set(id, v);
     }
     v.keys.push(c.key);
@@ -209,27 +211,38 @@ export function visibleCategories(views: CategoryView[], prefs: CategoryPrefs, c
 }
 
 export interface PrefixGroup {
+  /** "VOD" for a prefix group, "[FR]" for a trailing-tag group. */
   prefix: string;
+  type?: 'prefix' | 'suffix';
   ids: string[];
   hiddenCount: number;
 }
 
-/** Groups views by detected prefix ("US", "FR", ...), biggest first. Prefixes used once are skipped. */
+/**
+ * Groups views by detected prefix ("US", "VOD"...) and by trailing tag ("[FR]", "[MULTISUB]"...),
+ * prefixes first, biggest first. Groups used once are skipped.
+ */
 export function prefixGroups(views: CategoryView[], prefs: CategoryPrefs): PrefixGroup[] {
   const map = new Map<string, PrefixGroup>();
-  for (const v of views) {
-    if (!v.prefix) continue;
-    let g = map.get(v.prefix);
+  const add = (key: string, label: string, type: 'prefix' | 'suffix', v: CategoryView, hidden: boolean) => {
+    let g = map.get(key);
     if (!g) {
-      g = { prefix: v.prefix, ids: [], hiddenCount: 0 };
-      map.set(v.prefix, g);
+      g = { prefix: label, type, ids: [], hiddenCount: 0 };
+      map.set(key, g);
     }
     g.ids.push(v.id);
-    if (isHidden(v, prefs)) g.hiddenCount++;
+    if (hidden) g.hiddenCount++;
+  };
+  for (const v of views) {
+    if (!v.prefix && !v.suffix) continue;
+    const hidden = isHidden(v, prefs);
+    if (v.prefix) add('p:' + v.prefix, v.prefix, 'prefix', v, hidden);
+    if (v.suffix) add('s:' + v.suffix, '[' + v.suffix + ']', 'suffix', v, hidden);
   }
+  const rank = (g: PrefixGroup) => (g.type === 'suffix' ? 1 : 0);
   return Array.from(map.values())
     .filter((g) => g.ids.length > 1)
-    .sort((a, b) => b.ids.length - a.ids.length || (a.prefix < b.prefix ? -1 : 1));
+    .sort((a, b) => rank(a) - rank(b) || b.ids.length - a.ids.length || (a.prefix < b.prefix ? -1 : 1));
 }
 
 /** Returns new prefs with the given views hidden or shown. */
@@ -321,4 +334,51 @@ function yearOf(i: Item): number {
 }
 function ratingOf(i: Item): number {
   return i.kind !== 'live' && i.rating ? i.rating : 0;
+}
+
+export interface DroppableLibrary {
+  categories: Category[];
+  live: Item[];
+  movies: Item[];
+  series: Item[];
+  episodes?: Record<string, unknown>;
+}
+
+/**
+ * Removes the titles of hidden categories from a freshly loaded source (`hidden`: stored view ids
+ * per kind). Categories stay, with `skipped` set to how many titles were dropped, so they can still
+ * be shown again in category management. Returns the number of titles dropped.
+ */
+export function dropHiddenCategories(lib: DroppableLibrary, sourceId: string, hidden: Partial<Record<MediaKind, string[]>>): number {
+  const drop = new Set<string>();
+  for (const kind of ['live', 'movie', 'series'] as MediaKind[]) {
+    const ids = hidden[kind];
+    if (!ids || !ids.length) continue;
+    for (const v of buildCategoryViews(lib.categories, kind, [sourceId], false)) if (anyIdMatches(ids, v)) v.keys.forEach((k) => drop.add(k));
+  }
+  if (!drop.size) return 0;
+  const counts = new Map<string, number>();
+  const keep = <T extends Item>(list: T[]): T[] =>
+    list.filter((it) => {
+      if (!drop.has(it.categoryKey)) return true;
+      counts.set(it.categoryKey, (counts.get(it.categoryKey) || 0) + 1);
+      return false;
+    });
+  lib.live = keep(lib.live);
+  lib.movies = keep(lib.movies);
+  const keptSeries = keep(lib.series);
+  if (lib.episodes) {
+    const kept = new Set(keptSeries.map((s) => s.key));
+    for (const s of lib.series) if (!kept.has(s.key)) delete lib.episodes[s.key];
+  }
+  lib.series = keptSeries;
+  let n = 0;
+  for (const c of lib.categories) {
+    const k = counts.get(c.key);
+    if (k) {
+      c.skipped = k;
+      n += k;
+    }
+  }
+  return n;
 }

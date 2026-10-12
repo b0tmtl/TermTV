@@ -79,7 +79,11 @@ are handed back to spatial navigation at the edges.
   Ids match across merged / unmerged modes, so toggling merge keeps choices.
 - **Sort**: provider order, A → Z / Z → A (ignoring prefixes, accents, decorations; natural number order),
   custom (explicit id list), most watched (from history).
-- **Hide**: explicit list; bulk by detected prefix group (`US`, `FR`, `4K`...), or by filter text.
+- **Hide**: explicit list; bulk by detected group, from the start of the name (`US`, `VOD`, `4K`...) or its end
+  (`[FR]`, `(EN)`, `- VOSTFR`...), or by filter text.
+- **Don't load hidden categories** (on by default): titles of categories hidden in *every* profile are
+  dropped when a source loads (`dropHiddenCategories`) and are never saved; the category stays with a
+  `skipped` count so it can be shown again, which reloads that source.
 - **New categories**: ids seen are remembered; later ones are flagged and optionally auto-hidden.
 - **Items inside a category**: provider order, number, A → Z / Z → A, recently added, year, rating, recently watched.
 - Hidden categories disappear from browsing, Home, the guide and search (search can include them via a setting).
@@ -137,6 +141,10 @@ thread stores (`state/cache.ts`). **On a TV the cache is a file** in the app's p
 (QuotaExceededError). IndexedDB is the desktop path and the fallback; a TV that refuses `ArrayBuffer` values
 gets the chunks as strings. Settings → About shows whether
 each source's library was saved or loaded from the cache, or why saving failed. 100k titles: 26 MB of JSON become under 2 MB.
+
+**Home snapshot.** The titles Home shows are saved in a small file (`home-<profile>.json`); at launch Home
+renders from it at once while the full library loads, and screens that need the whole library show a
+spinner until then.
 
 **Keeping the UI thread light.** Anything that touches every title runs once per library or settings change,
 not per render: category lookups are maps, hidden / locked checks are cached per category, "Recently added",

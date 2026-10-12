@@ -78,6 +78,26 @@ export function splitPrefix(name: string): PrefixSplit {
   return { prefix: m[1].toUpperCase().replace(/\s+/g, ' '), rest };
 }
 
+// "VOD - ACTION [MULTISUB]", "Action (FR)", "Drama | EN", "Kids - VOSTFR": a short tag at the end.
+const SUFFIX_RE = /\s*(?:\[\s*([^\][]{1,14}?)\s*\]|\(\s*([^()]{1,14}?)\s*\)|[|\-–—]\s*([A-Z0-9+]{2,8}))\s*$/;
+
+const TRAILING_TAGS = /^(VOSTFR|VOST|VOSTA|MULTI|MULTISUB|SUBS?|DUBB?|DUAL|HEVC|UHD|FHD|HDR|4K|8K|3D|LAT|LATAM|CAST)$/;
+
+/**
+ * Detects a trailing tag in a category name ("[MULTISUB]", "(FR)", "| EN"), upper-cased.
+ * Years ("(2023)") are not tags. Empty when none.
+ */
+export function splitSuffix(name: string): string {
+  const s = name.normalize ? name.normalize('NFKC') : name;
+  const m = SUFFIX_RE.exec(s);
+  if (!m || m.index === 0) return '';
+  const tag = (m[1] || m[2] || m[3] || '').trim().toUpperCase().replace(/\s+/g, ' ');
+  if (!tag || /^(19|20)\d{2}$/.test(tag)) return '';
+  // After "-" or "|" only language codes and known tags: "VOD - ACTION" is a name, not a tag.
+  if (m[3] && tag.length > 3 && !TRAILING_TAGS.test(tag)) return '';
+  return tag;
+}
+
 // "Dune (2021)", "Dune [2021]", "Dune - 2021". A bare "Title 2021" is ambiguous ("Blade Runner 2049"),
 // so it only counts when `bare` is set and the year is not in the future.
 const YEAR_RE = /\s*(?:[([]\s*((?:19|20)\d{2})\s*[)\]]|[-–]\s*((?:19|20)\d{2}))\s*$/;
