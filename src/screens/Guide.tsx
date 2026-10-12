@@ -2,6 +2,7 @@
 // are rendered. Arrow keys move a (row, time) cursor; the grid scrolls in 30 minute steps.
 
 import { useLayoutEffect, useMemo, useState } from 'preact/hooks';
+import { Glyph } from '@/ui/Glyph';
 import type { Channel } from '@/core/models';
 import { cleanTitle } from '@/core/normalize';
 import { formatDate, formatTime, t } from '@/i18n';
@@ -177,7 +178,7 @@ export function GuideScreen() {
         <div class="g-chan">
           <span class="logo">{c.image ? <Img src={c.image} alt="" /> : null}</span>
           <span class="nm">
-            {data.favorites.indexOf(c.key) >= 0 ? '★ ' : ''}
+            {data.favorites.indexOf(c.key) >= 0 ? <Glyph n="star" gap /> : ''}
             {cleanTitle(c.name)}
           </span>
         </div>
@@ -236,6 +237,7 @@ export function GuideScreen() {
                 onFocus: () => setGridFocused(false),
               })}
             >
+              {tb.icon && <Glyph n={tb.icon} gap />}
               {tb.name}
               <span class="n">{tb.count}</span>
             </span>

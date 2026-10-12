@@ -9,6 +9,12 @@ const DB_NAME = 'termtv';
 const DB_VERSION = 1;
 export type StoreName = 'kv' | 'library' | 'epg';
 
+/** Old TVs reject with DOMError objects that print as "[object DOMError]". */
+function asError(e: unknown): Error {
+  const d = (e || {}) as { name?: string; message?: string };
+  return new Error(`Storage error${d.name ? ` (${d.name})` : ''}${d.message ? `: ${d.message}` : ''}`);
+}
+
 let dbPromise: Promise<IDBDatabase> | null = null;
 
 function open(): Promise<IDBDatabase> {
@@ -22,7 +28,7 @@ function open(): Promise<IDBDatabase> {
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => {
       dbPromise = null;
-      reject(req.error);
+      reject(asError(req.error));
     };
   });
   return dbPromise;
@@ -35,8 +41,8 @@ function tx<T>(store: StoreName, mode: IDBTransactionMode, fn: (s: IDBObjectStor
         const t = db.transaction(store, mode);
         const req = fn(t.objectStore(store));
         t.oncomplete = () => resolve(req ? (req.result as T) : (undefined as T));
-        t.onerror = () => reject(t.error);
-        t.onabort = () => reject(t.error);
+        t.onerror = () => reject(asError(t.error));
+        t.onabort = () => reject(asError(t.error));
       }),
   );
 }

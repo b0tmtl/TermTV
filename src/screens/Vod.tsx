@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from 'preact/hooks';
+import { Glyph } from '@/ui/Glyph';
 import { moveCategory, setHidden, sortCategoryViews, type CategoryView, type ItemSort } from '@/core/categories';
 import type { Item } from '@/core/models';
 import { t } from '@/i18n';
@@ -21,6 +22,7 @@ const ALL = '@all';
 interface CatEntry {
   id: string;
   name: string;
+  icon?: string;
   view?: CategoryView;
   count: number;
 }
@@ -33,11 +35,11 @@ export function VodScreen({ kind, categoryId }: { kind: 'movie' | 'series'; cate
   const cats = useMemo<CatEntry[]>(() => {
     const out: CatEntry[] = [];
     const favs = data.favorites.filter((k) => k.indexOf(`:${kind}:`) > 0 && itemByKey(k));
-    if (favs.length) out.push({ id: FAV, name: '★ ' + t('vod.favorites'), count: favs.length });
+    if (favs.length) out.push({ id: FAV, name: t('vod.favorites'), icon: 'star', count: favs.length });
     const cont = continueList(kind);
-    if (cont.length) out.push({ id: CONTINUE, name: '▶ ' + t('vod.continue'), count: cont.length });
+    if (cont.length) out.push({ id: CONTINUE, name: t('vod.continue'), icon: 'play', count: cont.length });
     const fresh = recentlyAdded(kind, 200);
-    if (fresh.length) out.push({ id: NEW, name: '✦ ' + t('vod.new'), count: fresh.length });
+    if (fresh.length) out.push({ id: NEW, name: t('vod.new'), icon: 'spark', count: fresh.length });
     const views = browseViews(kind);
     let total = 0;
     const entries = views.map((v) => {
@@ -131,7 +133,7 @@ export function VodScreen({ kind, categoryId }: { kind: 'movie' | 'series'; cate
     <div class="live">
       <div class="col-cats">
         <div class="col-head">
-          <span class="accent">❯</span> {kind === 'movie' ? '~/movies' : '~/series'} <span class="dim">ls</span>
+          <span class="accent"><Glyph n="prompt" /></span> {kind === 'movie' ? '~/movies' : '~/series'} <span class="dim">ls</span>
         </div>
         <VGrid
           id="vc"
@@ -159,7 +161,8 @@ export function VodScreen({ kind, categoryId }: { kind: 'movie' | 'series'; cate
           render={(c, i, cell) => (
             <div key={c.id} class={'list-item' + (i === catIdx ? ' active' : '')} style={{ width: 376 }} {...focusable(cell)}>
               <span class="name">
-                {c.view && isViewLocked(c.view) ? '🔒 ' : ''}
+                {c.view && isViewLocked(c.view) ? <Glyph n="lock" gap /> : ''}
+                {c.icon && <Glyph n={c.icon} gap />}
                 {c.name}
               </span>
               <span class="meta">{c.count}</span>
@@ -169,7 +172,7 @@ export function VodScreen({ kind, categoryId }: { kind: 'movie' | 'series'; cate
       </div>
       <div style={{ flex: 1, padding: '26px 0 0 40px', overflow: 'hidden' }}>
         <div class="col-head ellipsis" style={{ padding: '0 0 16px' }}>
-          <span class="accent">❯</span> {cat.name} <span class="faint">({items.length})</span>
+          <span class="accent"><Glyph n="prompt" /></span> {cat.name} <span class="faint">({items.length})</span>
         </div>
         {items.length ? (
           <VGrid

@@ -2,6 +2,7 @@
 // or everything matching a filter), reorder by hand, and lock with the parental PIN.
 
 import { useEffect, useMemo, useState } from 'preact/hooks';
+import { Glyph } from '@/ui/Glyph';
 import {
   filterViews, isHidden, isNew, markKnown, moveCategory, prefixGroups, setHidden, sortCategoryViews, type CategorySort, type CategoryView,
 } from '@/core/categories';
@@ -143,7 +144,7 @@ export function CategoriesScreen({ kind }: { kind: MediaKind }) {
             },
           })}
         >
-          ⌕ {filter ? `"${filter}"` : t('categories.filter')}
+          <Glyph n="search" gap />{filter ? `"${filter}"` : t('categories.filter')}
         </span>
       </div>
       {groups.length > 0 && (
@@ -154,7 +155,7 @@ export function CategoriesScreen({ kind }: { kind: MediaKind }) {
               const allHidden = g.hiddenCount === g.ids.length;
               return (
                 <span key={g.prefix} class={'chip' + (allHidden ? '' : ' active')} {...focusable({ onEnter: () => toggleGroup(g.ids, !allHidden) })}>
-                  {allHidden ? '☐' : g.hiddenCount ? '◩' : '☑'} {g.prefix}
+                  <Glyph n={allHidden ? 'box' : g.hiddenCount ? 'boxHalf' : 'boxCheck'} gap />{g.prefix}
                   <span class="n">{g.ids.length - g.hiddenCount}/{g.ids.length}</span>
                 </span>
               );
@@ -183,12 +184,12 @@ export function CategoriesScreen({ kind }: { kind: MediaKind }) {
                 style={{ width: 1600 }}
                 {...focusable({ ...cell, onEnter: () => (moving ? setMoving(null) : toggle(v)) })}
               >
-                <span class="box">{hidden ? '' : '✓'}</span>
+                <span class="box">{hidden ? '' : <Glyph n="check" />}</span>
                 <span class="nm">
-                  {moving === v.id ? '⇅ ' : ''}
+                  {moving === v.id ? <Glyph n="updown" gap /> : ''}
                   {v.name}
                 </span>
-                {locked.some((id) => id === v.id) || isViewLocked(v) ? <span class="cnt">🔒</span> : null}
+                {locked.some((id) => id === v.id) || isViewLocked(v) ? <span class="cnt"><Glyph n="lock" /></span> : null}
                 {isNew(v, prefs) && <span class="tag">{t('categories.new')}</span>}
                 {v.sourceIds.length > 1 && <span class="cnt">{t('categories.sources', { count: v.sourceIds.length })}</span>}
                 <span class="cnt">{counts[v.id] || 0}</span>

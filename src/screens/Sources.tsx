@@ -1,6 +1,7 @@
 // First launch ("Welcome") and the Add / Edit source form.
 
 import { useState } from 'preact/hooks';
+import { Glyph } from '@/ui/Glyph';
 import type { Source, SourceConfig } from '@/core/models';
 import { t } from '@/i18n';
 import { focusable } from '@/navigation/focus';
@@ -127,7 +128,7 @@ export function AddSourceScreen({ editId }: { editId?: string }) {
         </span>
       </div>
       {busy && stage && <div class="status-line">{stageLabel(stage.stage, stage.loaded, stage.total)}</div>}
-      {error && <div class="bad" style={{ marginTop: 10, fontSize: 24, maxWidth: 1300 }}>✗ {error}</div>}
+      {error && <div class="bad" style={{ marginTop: 10, fontSize: 24, maxWidth: 1300 }}><Glyph n="cross" gap />{error}</div>}
       <div class="dim" style={{ marginTop: 30, fontSize: 21, maxWidth: 1300 }}>{t('sources.privacy')}</div>
     </div>
   );

@@ -27,35 +27,57 @@ function useProxy(proxy?: string) {
   setUrlRewriter(proxy ? (u) => (/^https?:\/\//.test(u) ? proxy + encodeURIComponent(u) : u) : (u) => u);
 }
 
+/** Readable text for any error, including the DOMError objects old TVs' IndexedDB throws. */
+export function errorText(err: unknown): string {
+  if (!err) return 'Unknown error';
+  if (typeof err === 'string') return err;
+  const e = err as { name?: string; message?: string };
+  if (e.message) return e.name && e.name !== 'Error' ? `${e.name}: ${e.message}` : e.message;
+  return e.name || String(err);
+}
+
+/**
+ * Caching is best-effort: a TV that refuses to store a big library (quota, old IndexedDB) should
+ * still play it; it will just download again on the next launch.
+ */
+async function cache(store: 'library' | 'epg', key: string, value: unknown, id: number) {
+  try {
+    await dbPut(store, key, value);
+  } catch (err) {
+    console.warn('cache failed', store, errorText(err));
+    post({ type: 'progress', id, stage: 'cache-failed' });
+  }
+}
+
 ctx.onmessage = (e: MessageEvent) => {
   const req = e.data as LibraryRequest;
-  handle(req).catch((err: unknown) => post({ type: 'error', id: req.id, message: err instanceof Error ? err.message : String(err) }));
+  handle(req).catch((err: unknown) => post({ type: 'error', id: req.id, message: errorText(err) }));
 };
 
 async function handle(req: LibraryRequest) {
   switch (req.type) {
     case 'load':
-      post({ type: 'library', id: req.id, library: (await dbGet<SourceLibrary>('library', req.sourceId)) || null });
+      post({ type: 'library', id: req.id, library: (await dbGet<SourceLibrary>('library', req.sourceId).catch(() => undefined)) || null });
       return;
     case 'loadEpg':
-      post({ type: 'epg', id: req.id, epg: (await dbGet<SourceEpg>('epg', req.sourceId)) || null });
+      post({ type: 'epg', id: req.id, epg: (await dbGet<SourceEpg>('epg', req.sourceId).catch(() => undefined)) || null });
       return;
     case 'delete':
-      await dbDelete('library', req.sourceId);
-      await dbDelete('epg', req.sourceId);
+      await dbDelete('library', req.sourceId).catch(() => undefined);
+      await dbDelete('epg', req.sourceId).catch(() => undefined);
       post({ type: 'ok', id: req.id });
       return;
     case 'refresh': {
       useProxy(req.proxy);
       const lib = await refresh(req.source, req.id);
-      await dbPut('library', lib.sourceId, lib);
+      await cache('library', lib.sourceId, lib, req.id);
       post({ type: 'library', id: req.id, library: lib });
       return;
     }
     case 'epg': {
       useProxy(req.proxy);
       const epg = await loadEpg(req.source, req.urls, req.channels, req.hoursBack, req.hoursAhead, req.id);
-      await dbPut('epg', epg.sourceId, epg);
+      await cache('epg', epg.sourceId, epg, req.id);
       post({ type: 'epg', id: req.id, epg });
       return;
     }

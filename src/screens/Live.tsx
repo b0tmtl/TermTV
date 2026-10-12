@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { Glyph } from '@/ui/Glyph';
 import { moveCategory, setHidden, sortCategoryViews, type CategoryView, type ItemSort } from '@/core/categories';
 import type { Channel } from '@/core/models';
 import { cleanTitle } from '@/core/normalize';
@@ -25,6 +26,7 @@ export const ALL_ID = '@all';
 interface CatEntry {
   id: string;
   name: string;
+  icon?: string;
   view?: CategoryView;
   count: number;
 }
@@ -33,9 +35,9 @@ export function liveCategories(): CatEntry[] {
   const d = user.get().data;
   const out: CatEntry[] = [];
   const favCount = d.favorites.filter((k) => k.indexOf(':live:') > 0 && itemByKey(k)).length;
-  if (favCount) out.push({ id: FAV_ID, name: '★ ' + t('live.favorites'), count: favCount });
+  if (favCount) out.push({ id: FAV_ID, name: t('live.favorites'), icon: 'star', count: favCount });
   const recent = d.history.filter((h) => h.kind === 'live' && itemByKey(h.key)).length;
-  if (recent && d.settings.showRecent) out.push({ id: RECENT_ID, name: '⟲ ' + t('live.recent'), count: recent });
+  if (recent && d.settings.showRecent) out.push({ id: RECENT_ID, name: t('live.recent'), icon: 'recent', count: recent });
   const views = browseViews('live');
   let total = 0;
   const entries = views.map((v) => {
@@ -190,7 +192,7 @@ export function LiveScreen({ categoryId, channelKey }: { categoryId?: string; ch
     <div class="live">
       <div class="col-cats">
         <div class="col-head">
-          <span class="accent">❯</span> ~/live <span class="dim">ls</span>
+          <span class="accent"><Glyph n="prompt" /></span> ~/live <span class="dim">ls</span>
         </div>
         <VGrid
           key={'cats'}
@@ -220,7 +222,8 @@ export function LiveScreen({ categoryId, channelKey }: { categoryId?: string; ch
           render={(c, i, cell) => (
             <div key={c.id} class={'list-item' + (i === catIdx ? ' active' : '')} style={{ width: 376 }} {...focusable(cell)}>
               <span class="name">
-                {c.view && isViewLocked(c.view) ? '🔒 ' : ''}
+                {c.view && isViewLocked(c.view) ? <Glyph n="lock" gap /> : ''}
+                {c.icon && <Glyph n={c.icon} gap />}
                 {c.name}
               </span>
               <span class="meta">{c.count}</span>
@@ -230,7 +233,7 @@ export function LiveScreen({ categoryId, channelKey }: { categoryId?: string; ch
       </div>
       <div class="col-chans">
         <div class="col-head ellipsis">
-          <span class="accent">❯</span> {cat.name} <span class="faint">({channels.length})</span>
+          <span class="accent"><Glyph n="prompt" /></span> {cat.name} <span class="faint">({channels.length})</span>
         </div>
         {channels.length ? (
           <VGrid
@@ -259,12 +262,12 @@ export function LiveScreen({ categoryId, channelKey }: { categoryId?: string; ch
                   <span class="logo">{ch.image ? <Img src={ch.image} alt="" /> : null}</span>
                   <span class="two">
                     <span class="name ellipsis">
-                      {data.favorites.indexOf(ch.key) >= 0 ? '★ ' : ''}
+                      {data.favorites.indexOf(ch.key) >= 0 ? <Glyph n="star" gap /> : ''}
                       {cleanTitle(ch.name)}
                     </span>
                     <span class="prog">{now ? `${formatTime(now.start, clock24)} ${now.title}` : ''}</span>
                   </span>
-                  {playingKey === ch.key && <span class="playing">▶</span>}
+                  {playingKey === ch.key && <span class="playing"><Glyph n="play" /></span>}
                 </div>
               );
             }}
@@ -282,7 +285,7 @@ export function LiveScreen({ categoryId, channelKey }: { categoryId?: string; ch
           )}
           {playingKey && playStatus === 'error' && (
             <div class="bad" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', fontSize: 22, textAlign: 'center', padding: 30 }}>
-              ✗ {t('player.error')}
+              <Glyph n="cross" gap />{t('player.error')}
             </div>
           )}
           {!playingKey && (

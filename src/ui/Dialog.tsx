@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { Glyph } from './Glyph';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { t } from '@/i18n';
 import { focusable, keyHandler, popLayer, pushLayer } from '@/navigation/focus';
@@ -50,7 +51,7 @@ export function MenuDialog({ title, text, options, close }: { title: string; tex
               })}
               data-focus-default={o.checked ? '' : undefined}
             >
-              <span class="check">{o.checked ? '●' : ''}</span>
+              <span class="check">{o.checked ? <Glyph n="dot" /> : ''}</span>
               <span class={o.danger ? 'bad' : ''}>{o.label}</span>
               {o.hint && <span class="hint">{o.hint}</span>}
             </div>
@@ -170,7 +171,7 @@ function PinPad({ title, text, close, done }: { title: string; text?: string; cl
       done(next);
     }
   };
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
+  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'del'];
   return (
     <Layer>
       <div class="dialog" style={{ minWidth: 600, textAlign: 'center' }} {...keyHandler((k) => {
@@ -187,15 +188,15 @@ function PinPad({ title, text, close, done }: { title: string; text?: string; cl
         <h2>{title}</h2>
         {text && <p>{text}</p>}
         <div style={{ fontSize: 60, letterSpacing: 24, margin: '10px 0 26px', color: 'var(--accent)' }}>
-          {'●●●●'.slice(0, pin.length) + '○○○○'.slice(pin.length)}
+          {[0, 1, 2, 3].map((i) => <Glyph key={i} n={i < pin.length ? 'dot' : 'ring'} gap />)}
         </div>
         <div class="osk" style={{ display: 'inline-block' }}>
           {[0, 1, 2, 3].map((r) => (
             <div class="k-row" key={r}>
               {keys.slice(r * 3, r * 3 + 3).map((k) =>
                 k ? (
-                  <span key={k} class="k" style={{ width: 110, height: 80, fontSize: 34 }} {...focusable({ onEnter: () => (k === '⌫' ? setPin((p) => p.slice(0, -1)) : press(k)) })}>
-                    {k}
+                  <span key={k} class="k" style={{ width: 110, height: 80, fontSize: 34 }} {...focusable({ onEnter: () => (k === 'del' ? setPin((p) => p.slice(0, -1)) : press(k)) })}>
+                    {k === 'del' ? <Glyph n="backspace" /> : k}
                   </span>
                 ) : (
                   <span key="blank" class="k" style={{ width: 110, height: 80, visibility: 'hidden' }} />

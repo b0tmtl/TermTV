@@ -1,4 +1,5 @@
 import type { Channel, Item } from '@/core/models';
+import { Glyph } from '@/ui/Glyph';
 import { t } from '@/i18n';
 import { focusable } from '@/navigation/focus';
 import { navigate } from '@/navigation/router';
@@ -51,7 +52,7 @@ export function HomeScreen() {
             <div style={{ fontSize: 28, marginBottom: 30 }}>{sources.length ? t('home.emptyLibrary') : t('home.noSources')}</div>
             {errIds.map((id) => (
               <div key={id} class="bad" style={{ marginBottom: 20 }}>
-                ✗ {(sources.find((s) => s.id === id) || { name: id }).name}: {errors[id]}
+                <Glyph n="cross" gap />{(sources.find((s) => s.id === id) || { name: id }).name}: {errors[id]}
               </div>
             ))}
             <span class="btn primary" data-focus-default="" {...focusable({ onEnter: () => navigate({ name: 'addSource' }) })}>
@@ -151,7 +152,7 @@ export function HomeScreen() {
             ))}
             <div class="card poster" {...focusable({ id: 'lall:' + l.id, onEnter: () => navigate({ name: 'list', listId: l.id }) })}>
               <div class="art">
-                <div class="ph">{t('home.seeAll')} →</div>
+                <div class="ph">{t('home.seeAll')} <Glyph n="arrow" /></div>
               </div>
             </div>
           </Row>

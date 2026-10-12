@@ -1,4 +1,5 @@
 import { t } from '@/i18n';
+import { Glyph } from '@/ui/Glyph';
 import { focusable } from '@/navigation/focus';
 import { resetTo } from '@/navigation/router';
 import { initLibrary } from '@/state/library';
@@ -95,7 +96,7 @@ export function ProfilesScreen() {
           >
             <Avatar name={p.name} avatar={p.avatar} />
             <div class="name">
-              {p.pin ? '🔒 ' : ''}
+              {p.pin ? <Glyph n="lock" gap /> : ''}
               {p.name}
             </div>
           </div>

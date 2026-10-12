@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { Glyph } from '@/ui/Glyph';
 import type { Channel, Item } from '@/core/models';
 import { cleanTitle } from '@/core/normalize';
 import { formatTime, t } from '@/i18n';
@@ -231,7 +232,7 @@ function SeeAll({ onEnter }: { onEnter: () => void }) {
   return (
     <div class="card poster" {...focusable({ onEnter })}>
       <div class="art">
-        <div class="ph">{t('home.seeAll')} →</div>
+        <div class="ph">{t('home.seeAll')} <Glyph n="arrow" /></div>
       </div>
     </div>
   );
@@ -245,7 +246,7 @@ function GuideHit({ g, clock24, onEnter, cell }: { g: { channel: Channel; progra
       <span class="logo">{g.channel.image ? <Img src={g.channel.image} alt="" /> : null}</span>
       <span class="tx">
         <div class="t">
-          {on && <span class="on">● {t('search.onNow')}</span>}
+          {on && <span class="on"><Glyph n="dot" gap />{t('search.onNow')}</span>}
           {g.programme.title}
         </div>
         <div class="s">

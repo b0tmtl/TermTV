@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { Glyph } from './Glyph';
 import { useState } from 'preact/hooks';
 import type { Channel, Item } from '@/core/models';
 import { cleanTitle, splitYear } from '@/core/normalize';
@@ -39,8 +40,8 @@ export function PosterCard({ item, id, progress, favorite, locked, badge, sub, .
       <div class="art">
         <Img src={item.image} alt={title} />
         {badge && <span class="badge">{badge}</span>}
-        {favorite && <span class="fav">★</span>}
-        {locked && <span class="lock">🔒</span>}
+        {favorite && <span class="fav"><Glyph n="star" /></span>}
+        {locked && <span class="lock"><Glyph n="lock" /></span>}
         {progress !== undefined && progress > 0 && (
           <div class="progress">
             <i style={{ width: Math.min(100, progress * 100) + '%' }} />
@@ -59,8 +60,8 @@ export function ChannelCard({ item, id, favorite, locked, sub, ...h }: CardProps
     <div class="card channel" {...focusable({ ...h, id })}>
       <div class="art">
         <Img src={item.image} alt={title} />
-        {favorite && <span class="fav">★</span>}
-        {locked && <span class="lock">🔒</span>}
+        {favorite && <span class="fav"><Glyph n="star" /></span>}
+        {locked && <span class="lock"><Glyph n="lock" /></span>}
       </div>
       <div class="title ellipsis">{title}</div>
       {sub && <div class="sub ellipsis" style={{ width: 210, textAlign: 'center' }}>{sub}</div>}
@@ -75,7 +76,7 @@ export function ItemCard(props: CardProps) {
 export function Prompt({ path, cmd, count, small }: { path: string; cmd?: string; count?: ComponentChildren; small?: boolean }) {
   return (
     <div class={'prompt' + (small ? ' small' : '')}>
-      <span class="caret">❯</span>
+      <span class="caret"><Glyph n="prompt" /></span>
       <span class="path">{path}</span>
       {cmd && <span class="cmd">{cmd}</span>}
       {count !== undefined && <span class="count">{count}</span>}

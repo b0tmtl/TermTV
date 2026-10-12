@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { Glyph } from '@/ui/Glyph';
 import type { Channel } from '@/core/models';
 import { cleanTitle, splitYear } from '@/core/normalize';
 import { formatDuration, formatTime, t } from '@/i18n';
@@ -229,7 +230,7 @@ export function PlayerScreen() {
       )}
       {st.status === 'error' && (
         <div class="status">
-          <div>✗ {t('player.error')}</div>
+          <div><Glyph n="cross" gap />{t('player.error')}</div>
           <div class="dim" style={{ fontSize: 20, margin: '8px 0 18px' }}>{st.error}</div>
           <span class="btn primary" data-focus-default="" {...focusable({ id: 'pc:retry', onEnter: retry })}>
             <Icon name="refresh" />
@@ -242,7 +243,7 @@ export function PlayerScreen() {
         <>
           <div class="top">
             <div class="title ellipsis">
-              {fav ? '★ ' : ''}
+              {fav ? <Glyph n="star" gap /> : ''}
               {title}
             </div>
             <div class="subtitle-line ellipsis">{sub}</div>
@@ -309,7 +310,7 @@ export function PlayerScreen() {
       {panel && live && (
         <div class="player-side">
           <div class="col-head">
-            <span class="accent">❯</span> {t('player.channels')} <span class="faint">({list.length})</span>
+            <span class="accent"><Glyph n="prompt" /></span> {t('player.channels')} <span class="faint">({list.length})</span>
           </div>
           <VGrid
             id="pl"
@@ -329,7 +330,7 @@ export function PlayerScreen() {
                     <span class="name ellipsis">{cleanTitle(ch.name)}</span>
                     <span class="prog">{now ? now.title : ''}</span>
                   </span>
-                  {ch.key === target.channel.key && <span class="playing">▶</span>}
+                  {ch.key === target.channel.key && <span class="playing"><Glyph n="play" /></span>}
                 </div>
               );
             }}

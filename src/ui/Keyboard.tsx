@@ -2,6 +2,7 @@
 // slow, so text entry happens here; a physical/USB keyboard also works (keys go to the dialog).
 
 import { useState } from 'preact/hooks';
+import { Glyph } from './Glyph';
 import { t } from '@/i18n';
 import { focusable } from '@/navigation/focus';
 
@@ -45,7 +46,7 @@ export function Keyboard({ value, onChange, onDone, url }: { value: string; onCh
           {t('keyboard.space')}
         </span>
         <span class="k wide" {...focusable({ onEnter: () => onChange(value.slice(0, -1)) })}>
-          ⌫
+          <Glyph n="backspace" />
         </span>
         <span class="k wide" {...focusable({ onEnter: () => onChange('') })}>
           {t('keyboard.clear')}

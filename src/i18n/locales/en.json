@@ -1,11 +1,49 @@
 {
-  "_meta": { "name": "English", "code": "en" },
-  "common": { "ok": "OK", "cancel": "Cancel", "done": "Done", "delete": "Delete", "on": "On", "off": "Off" },
-  "app": { "exitTitle": "Exit TermTV?", "exitText": "Playback will stop.", "exit": "Exit" },
-  "nav": { "home": "Home", "live": "Live TV", "guide": "TV Guide", "movies": "Movies", "series": "Series", "search": "Search", "settings": "Settings" },
-  "time": { "am": "AM", "pm": "PM", "minutes": { "one": "{count} min", "other": "{count} min" }, "hoursMinutes": "{h} h {m} min" },
-  "keyboard": { "space": "space", "clear": "clear", "ok": "OK" },
-  "hints": { "favorite": "Favorite", "sort": "Sort", "options": "Options" },
+  "_meta": {
+    "name": "English",
+    "code": "en"
+  },
+  "common": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "done": "Done",
+    "delete": "Delete",
+    "on": "On",
+    "off": "Off"
+  },
+  "app": {
+    "exitTitle": "Exit TermTV?",
+    "exitText": "Playback will stop.",
+    "exit": "Exit"
+  },
+  "nav": {
+    "home": "Home",
+    "live": "Live TV",
+    "guide": "TV Guide",
+    "movies": "Movies",
+    "series": "Series",
+    "search": "Search",
+    "settings": "Settings"
+  },
+  "time": {
+    "am": "AM",
+    "pm": "PM",
+    "minutes": {
+      "one": "{count} min",
+      "other": "{count} min"
+    },
+    "hoursMinutes": "{h} h {m} min"
+  },
+  "keyboard": {
+    "space": "space",
+    "clear": "clear",
+    "ok": "OK"
+  },
+  "hints": {
+    "favorite": "Favorite",
+    "sort": "Sort",
+    "options": "Options"
+  },
   "welcome": {
     "text": "TermTV plays the live TV, movies and series from your own IPTV provider. Add an Xtream Codes account or an M3U playlist to get started.",
     "free": "Free and open source (GPL-3.0). No account, no ads, no tracking. Everything stays on this TV.",
@@ -59,7 +97,9 @@
     "summary": "Library: {live} channels · {movies} movies · {series} series",
     "items": "{live} ch · {movies} movies · {series} series",
     "expires": "expires {date}",
-    "updated": "updated {date}"
+    "updated": "updated {date}",
+    "disabled": "disabled",
+    "errorPrefix": "Error: {error}"
   },
   "progress": {
     "start": "Starting…",
@@ -114,11 +154,20 @@
     "shuffle": "Shuffle episodes",
     "more": "More",
     "versions": "Versions",
-    "versionsCount": { "one": "{count} version", "other": "{count} versions" },
+    "versionsCount": {
+      "one": "{count} version",
+      "other": "{count} versions"
+    },
     "director": "Director",
-    "cast": "Cast"
+    "cast": "Cast",
+    "rating": "Rating {value}"
   },
-  "fav": { "add": "Add to favorites", "remove": "Remove from favorites", "added": "Added to favorites", "removed": "Removed from favorites" },
+  "fav": {
+    "add": "Add to favorites",
+    "remove": "Remove from favorites",
+    "added": "Added to favorites",
+    "removed": "Removed from favorites"
+  },
   "lists": {
     "addTo": "Add to a list",
     "new": "New list…",
@@ -131,7 +180,9 @@
     "empty": "This list is empty. Use Options (yellow) on any channel, movie or series to add it.",
     "notFound": "This list no longer exists."
   },
-  "item": { "goToCategory": "Go to {name}" },
+  "item": {
+    "goToCategory": "Go to {name}"
+  },
   "sort": {
     "channels": "Sort channels",
     "items": "Sort titles",
@@ -149,7 +200,11 @@
     "live": "Live TV categories",
     "movies": "Movie categories",
     "series": "Series categories",
-    "kind": { "live": "Live TV", "movie": "Movies", "series": "Series" },
+    "kind": {
+      "live": "Live TV",
+      "movie": "Movies",
+      "series": "Series"
+    },
     "manage": "Manage categories",
     "hide": "Hide category",
     "show": "Show category",
@@ -159,7 +214,13 @@
     "pickUp": "Move (pick up)",
     "sortBy": "Sort categories",
     "sortLabel": "Sort",
-    "sort": { "provider": "Provider order", "az": "A → Z", "za": "Z → A", "custom": "Custom", "mostWatched": "Most watched" },
+    "sort": {
+      "provider": "Provider order",
+      "az": "A → Z",
+      "za": "Z → A",
+      "custom": "Custom",
+      "mostWatched": "Most watched"
+    },
     "merge": "Merge same names",
     "showAll": "Show all",
     "hideAll": "Hide all",
@@ -170,7 +231,10 @@
     "hideGroup": "Hide every {prefix} category",
     "counts": "{total} categories · {hidden} hidden",
     "new": "NEW",
-    "sources": { "one": "{count} source", "other": "{count} sources" },
+    "sources": {
+      "one": "{count} source",
+      "other": "{count} sources"
+    },
     "none": "No categories match.",
     "newPolicy": "New categories",
     "newPolicyDesc": "What to do with categories that appear after a playlist refresh",
@@ -203,7 +267,10 @@
     "lockCategory": "Lock with PIN",
     "unlockCategory": "Remove the lock",
     "setPinFirst": "Set a parental PIN first (Settings → Parental controls).",
-    "lockedCount": { "one": "{count} locked category", "other": "{count} locked categories" },
+    "lockedCount": {
+      "one": "{count} locked category",
+      "other": "{count} locked categories"
+    },
     "howToLock": "Lock a category with the blue button in Manage categories"
   },
   "player": {
@@ -219,7 +286,11 @@
     "nextEpisode": "Next episode",
     "channels": "Channels",
     "liveHints": "▲ ▼ change channel · ◀ / OK channel list · 0-9 channel number",
-    "aspect": { "fit": "Fit", "fill": "Fill", "stretch": "Stretch" }
+    "aspect": {
+      "fit": "Fit",
+      "fill": "Fill",
+      "stretch": "Stretch"
+    }
   },
   "search": {
     "placeholder": "Type to search…",
@@ -233,7 +304,14 @@
     "series": "Series",
     "guide": "On TV",
     "onNow": "LIVE",
-    "scope": { "all": "All", "live": "Channels", "vod": "VOD", "movie": "Movies", "series": "Series", "guide": "TV Guide" }
+    "scope": {
+      "all": "All",
+      "live": "Channels",
+      "vod": "VOD",
+      "movie": "Movies",
+      "series": "Series",
+      "guide": "TV Guide"
+    }
   },
   "settings": {
     "sources": "Sources",
@@ -273,16 +351,44 @@
     "subtitlePreview": "This is how subtitles will look.",
     "epgDays": "Guide length",
     "epgDaysDesc": "How far ahead to keep the guide (longer uses more memory)",
-    "hours": { "one": "{count} hour", "other": "{count} hours" },
+    "hours": {
+      "one": "{count} hour",
+      "other": "{count} hours"
+    },
     "profiles": "Profiles",
     "profilesDesc": "Add, rename or protect profiles with a PIN",
     "translateHelp": "Want TermTV in your language? Translations are simple JSON files: see CONTRIBUTING.md on GitHub."
   },
-  "theme": { "midnight": "Midnight Shell", "matrix": "Matrix Green", "amber": "Amber CRT", "purple": "Purple Cyber", "synthwave": "Synthwave", "paper": "Paper (light)" },
-  "size": { "small": "Small", "medium": "Medium", "large": "Large", "xlarge": "Extra large" },
-  "subbg": { "none": "None", "shadow": "Shadow", "box": "Box" },
-  "subpos": { "bottom": "Bottom", "raised": "Raised", "top": "Top" },
-  "color": { "white": "White", "yellow": "Yellow", "cyan": "Cyan", "green": "Green" },
+  "theme": {
+    "midnight": "Midnight Shell",
+    "matrix": "Matrix Green",
+    "amber": "Amber CRT",
+    "purple": "Purple Cyber",
+    "synthwave": "Synthwave",
+    "paper": "Paper (light)"
+  },
+  "size": {
+    "small": "Small",
+    "medium": "Medium",
+    "large": "Large",
+    "xlarge": "Extra large"
+  },
+  "subbg": {
+    "none": "None",
+    "shadow": "Shadow",
+    "box": "Box"
+  },
+  "subpos": {
+    "bottom": "Bottom",
+    "raised": "Raised",
+    "top": "Top"
+  },
+  "color": {
+    "white": "White",
+    "yellow": "Yellow",
+    "cyan": "Cyan",
+    "green": "Green"
+  },
   "backup": {
     "intro": "Save your sources, profiles, favorites, lists, history and settings to a USB drive, and restore them on this or another TV.",
     "export": "Save a backup",

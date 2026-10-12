@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { Glyph } from '@/ui/Glyph';
 import type { Episode, Item, Movie, MovieDetails, Series, SeriesDetails } from '@/core/models';
 import { cleanTitle, splitYear } from '@/core/normalize';
 import { formatDuration, formatMinutes, t } from '@/i18n';
@@ -51,7 +52,7 @@ export function DetailsScreen({ itemKey }: { itemKey: string }) {
 
   const meta: string[] = [];
   if (year) meta.push(String(year));
-  if (rating) meta.push('★ ' + (Math.round(rating * 10) / 10).toFixed(1));
+  if (rating) meta.push(t('details.rating', { value: (Math.round(rating * 10) / 10).toFixed(1) }));
   if (details && details.duration && item.kind === 'movie') meta.push(formatMinutes(details.duration));
   if (details && details.genre) meta.push(details.genre);
   if (sources.length > 1) meta.push(sourceName(item.sourceId));
@@ -205,7 +206,7 @@ export function DetailsScreen({ itemKey }: { itemKey: string }) {
               <span key={i}>{m}</span>
             ))}
           </div>
-          {error && <div class="bad">✗ {error}</div>}
+          {error && <div class="bad"><Glyph n="cross" gap />{error}</div>}
           {(details && details.plot) || (item.kind === 'series' && (item as Series).plot) ? (
             <div class="plot clamp4">{(details && details.plot) || (item as Series).plot}</div>
           ) : null}

@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact';
+import { Glyph } from '@/ui/Glyph';
 import { useState } from 'preact/hooks';
 import type { Source } from '@/core/models';
 import { currentLanguage, formatDate, languages, t } from '@/i18n';
@@ -33,7 +34,7 @@ export function SettingsScreen({ section }: { section?: string }) {
     <div class="settings">
       <div class="menu" data-focus-memory="">
         <div class="col-head">
-          <span class="accent">❯</span> ~/settings <span class="dim">ls</span>
+          <span class="accent"><Glyph n="prompt" /></span> ~/settings <span class="dim">ls</span>
         </div>
         {SECTIONS.map((s) => (
           <div
@@ -148,8 +149,8 @@ function SourcesPane() {
         return (
           <Setting
             key={src.id}
-            label={(src.enabled ? '' : '⏸ ') + src.name}
-            desc={r ? stageLabel(r.stage, r.loaded, r.total) : err ? '✗ ' + err : desc}
+            label={src.enabled ? src.name : `${src.name} (${t('sources.disabled')})`}
+            desc={r ? stageLabel(r.stage, r.loaded, r.total) : err ? t('sources.errorPrefix', { error: err }) : desc}
             value={r ? <span class="spinner" style={{ width: 30, height: 30 }} /> : lib ? t('sources.updated', { date: formatDate(lib.updatedAt) }) : ''}
             onEnter={() => sourceMenu(src)}
           />
@@ -185,9 +186,9 @@ function CategoriesPane() {
   return (
     <div>
       <div class="dim" style={{ marginBottom: 20, fontSize: 22 }}>{t('categories.intro')}</div>
-      <Setting label={t('categories.live')} value="→" onEnter={() => navigate({ name: 'categories', kind: 'live' })} />
-      <Setting label={t('categories.movies')} value="→" onEnter={() => navigate({ name: 'categories', kind: 'movie' })} />
-      <Setting label={t('categories.series')} value="→" onEnter={() => navigate({ name: 'categories', kind: 'series' })} />
+      <Setting label={t('categories.live')} value={<Glyph n="arrow" />} onEnter={() => navigate({ name: 'categories', kind: 'live' })} />
+      <Setting label={t('categories.movies')} value={<Glyph n="arrow" />} onEnter={() => navigate({ name: 'categories', kind: 'movie' })} />
+      <Setting label={t('categories.series')} value={<Glyph n="arrow" />} onEnter={() => navigate({ name: 'categories', kind: 'series' })} />
       <Setting
         label={t('categories.newPolicy')}
         desc={t('categories.newPolicyDesc')}
@@ -288,7 +289,7 @@ function SubtitlesPane() {
       />
       <Setting
         label={t('settings.subtitleColor')}
-        value={<span style={{ color: st.color }}>■ {(colors.find((c) => c.value === st.color) || colors[0]).label}</span>}
+        value={<span style={{ color: st.color }}><Glyph n="box" gap />{(colors.find((c) => c.value === st.color) || colors[0]).label}</span>}
         onEnter={() => choose(t('settings.subtitleColor'), colors, st.color, (v) => setStyle({ color: v }))}
       />
       <Setting
@@ -331,7 +332,7 @@ function ParentalPane() {
             value={app.lockMode === 'hide' ? t('parental.modeHide') : t('parental.modePin')}
             onEnter={async () => (await askPin()) && updateApp({ lockMode: app.lockMode === 'hide' ? 'pin' : 'hide' })}
           />
-          <Setting label={t('parental.lockedCount', { count: locked.length })} desc={t('parental.howToLock')} value="→" onEnter={() => navigate({ name: 'categories', kind: 'live' })} />
+          <Setting label={t('parental.lockedCount', { count: locked.length })} desc={t('parental.howToLock')} value={<Glyph n="arrow" />} onEnter={() => navigate({ name: 'categories', kind: 'live' })} />
           <Setting
             label={t('parental.removePin')}
             onEnter={async () => {
@@ -342,7 +343,7 @@ function ParentalPane() {
           />
         </>
       )}
-      <Setting label={t('settings.profiles')} desc={t('settings.profilesDesc')} value="→" onEnter={() => resetTo({ name: 'profiles' })} />
+      <Setting label={t('settings.profiles')} desc={t('settings.profilesDesc')} value={<Glyph n="arrow" />} onEnter={() => resetTo({ name: 'profiles' })} />
     </div>
   );
 }
@@ -410,7 +411,7 @@ function LanguagePane() {
   return (
     <div>
       {languages().map((l) => (
-        <Setting key={l.code} label={l.name} value={l.code === cur ? '●' : ''} onEnter={() => updateApp({ language: l.code })} />
+        <Setting key={l.code} label={l.name} value={l.code === cur ? <Glyph n="dot" /> : ''} onEnter={() => updateApp({ language: l.code })} />
       ))}
       <div class="dim" style={{ marginTop: 20, fontSize: 21 }}>{t('settings.translateHelp')}</div>
     </div>
