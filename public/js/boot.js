@@ -1,4 +1,16 @@
 // Boot helpers in plain ES5: they must run even if the app bundle fails on an old TV.
+
+// Polyfills that bundle helpers may need before the app's own polyfills load (Chromium 47).
+if (!Object.getOwnPropertyDescriptors) {
+  Object.getOwnPropertyDescriptors = function (o) {
+    var out = {};
+    var keys = Object.getOwnPropertyNames(o).concat(Object.getOwnPropertySymbols ? Object.getOwnPropertySymbols(o) : []);
+    for (var i = 0; i < keys.length; i++) out[keys[i]] = Object.getOwnPropertyDescriptor(o, keys[i]);
+    return out;
+  };
+}
+if (!Object.values) Object.values = function (o) { return Object.keys(o).map(function (k) { return o[k]; }); };
+if (!Object.entries) Object.entries = function (o) { return Object.keys(o).map(function (k) { return [k, o[k]]; }); };
     (function () {
       var sp = document.getElementById('splash');
       var el = document.getElementById('boot-error');

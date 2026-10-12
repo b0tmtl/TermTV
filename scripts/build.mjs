@@ -24,8 +24,9 @@ const dist = join(root, 'dist');
 const serve = process.argv.includes('--serve');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
-// esbuild bundles to ES2017; Babel then lowers JavaScript to the oldest supported engine.
-const TARGET = ['es2017'];
+// esbuild bundles to ES2018 and leaves object spread to Babel: esbuild's own helper needs
+// Object.getOwnPropertyDescriptors (Chromium 54+) and runs before any polyfill can load.
+const TARGET = ['es2018'];
 const CSS_TARGET = ['chrome47'];
 const OLDEST = { chrome: '47' };
 
