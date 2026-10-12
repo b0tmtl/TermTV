@@ -76,7 +76,7 @@ jobs:
           expect -c "set timeout -1; spawn $GITHUB_WORKSPACE/tizen-studio/tools/ide/bin/tizen package -t wgt -s TermTV -o build -- dist; expect eof"
           WGT=$(ls build/*.wgt | head -1)
           test -n "$WGT"
-          mv "$WGT" build/TermTV.wgt
+          [ "$WGT" = build/TermTV.wgt ] || mv "$WGT" build/TermTV.wgt
           ls -la build
 
       - name: Release tag
