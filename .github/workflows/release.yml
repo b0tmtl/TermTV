@@ -1,5 +1,6 @@
 # Builds and signs TermTV.wgt and attaches it to a GitHub Release, so TizenBrew Installer can install it
-# with "Install from GitHub" -> b0tmtl/TermTV. Triggered by pushing a tag like v0.1.0.
+# with "Install from GitHub" -> b0tmtl/TermTV. Triggered by pushing a tag like v0.1.0, or run it by hand
+# (Actions -> Release -> Run workflow): it then tags the release v<package.json version>.
 #
 # Signing: a Tizen author certificate + the public Tizen distributor certificate (same approach as
 # TizenBrew). TVs below Tizen 7 accept that in developer mode; on Tizen 7+ TizenBrew Installer re-signs
@@ -74,9 +75,16 @@ jobs:
           mv "$WGT" build/TermTV.wgt
           ls -la build
 
+      - name: Release tag
+        id: tag
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then echo "name=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT";
+          else echo "name=v$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"; fi
+
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}-dev', github.run_number) }}
+          tag_name: ${{ steps.tag.outputs.name }}
+          target_commitish: ${{ github.sha }}
           prerelease: true
           generate_release_notes: true
           files: build/TermTV.wgt
