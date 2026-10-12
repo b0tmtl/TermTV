@@ -1,0 +1,37 @@
+{
+  "name": "termtv",
+  "version": "0.1.0",
+  "description": "Free, open-source IPTV player for Samsung Smart TVs (Tizen 4.0+ / 2018+). Bring your own Xtream or M3U source.",
+  "license": "GPL-3.0-only",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npm run gen && node scripts/build.mjs --serve",
+    "build": "npm run gen && node scripts/build.mjs",
+    "mock": "node mock/server.mjs",
+    "typecheck": "npm run gen && tsc --noEmit",
+    "test": "npm run gen && vitest run",
+    "test:watch": "vitest",
+    "check": "npm run typecheck && npm run test && npm run build && npm run check:es",
+    "package": "node scripts/package-wgt.mjs",
+    "gen": "node scripts/gen-locales.mjs",
+    "check:es": "node scripts/check-es.mjs",
+    "e2e": "node scripts/e2e.mjs"
+  },
+  "dependencies": {
+    "fflate": "0.8.2",
+    "hls.js": "1.6.13",
+    "mpegts.js": "1.8.0",
+    "preact": "10.27.2"
+  },
+  "devDependencies": {
+    "@fontsource/jetbrains-mono": "5.2.8",
+    "@types/node": "22.18.8",
+    "acorn": "8.15.0",
+    "esbuild": "0.25.12",
+    "fake-indexeddb": "6.2.5",
+    "playwright-core": "1.56.1",
+    "typescript": "5.9.3",
+    "vitest": "2.1.9"
+  }
+}

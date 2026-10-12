@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+*.wgt
+.buildResult/
+.sign/
+author.p12
+distributor.p12
+.DS_Store
+/test-results/
+/screenshots/
+src/i18n/locales.generated.ts
+mock/media/
