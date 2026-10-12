@@ -8,9 +8,9 @@ import {
 } from '@/core/categories';
 import type { Category, Channel, Episode, Item, MediaKind, Movie, Programme, Series, SeriesDetails, MovieDetails, Source } from '@/core/models';
 import { dedupeKey } from '@/core/normalize';
-import { ALL_KINDS, DocKind, type SearchDocInput, type SearchResult } from '@/core/search/engine';
+import { ALL_KINDS, DocKind, type SearchResult } from '@/core/search/engine';
 import { XtreamClient } from '@/providers/xtream';
-import type { EpgChannelRef, SourceEpg, SourceLibrary } from '@/workers/protocol';
+import type { EpgChannelRef, SearchBuildDocs, SourceEpg, SourceLibrary } from '@/workers/protocol';
 import { createStore } from './store';
 import { updateCategoryPrefs, user } from './user';
 import { libraryWorker, searchWorker } from './workers';
@@ -84,6 +84,7 @@ function combine() {
   series.forEach(add);
   viewCache.clear();
   itemCache.clear();
+  derivedCache.clear();
   libraryState.set((s) => ({ version: s.version + 1, status: byKey.size ? 'ready' : Object.keys(s.refreshing).length ? 'loading' : 'empty' }));
   rememberKnownCategories();
   buildSearch();
@@ -204,6 +205,20 @@ export function sourceLibrary(sourceId: string): SourceLibrary | undefined {
 // ---- Categories -------------------------------------------------------------------------------
 
 const viewCache = new Map<string, CategoryView[]>();
+/** category key -> its view, per `kind|merge` (same lifetime as viewCache). */
+const viewByKeyCache = new Map<string, { views: CategoryView[]; map: Map<string, CategoryView> }>();
+/**
+ * Results that depend on the library and on the user's choices (hidden, locked, history). Cleared
+ * when either changes; without it Home and the VOD screens rescanned every title on each render.
+ */
+const derivedCache = new Map<string, unknown>();
+
+function derived<T>(key: string, make: () => T): T {
+  if (derivedCache.has(key)) return derivedCache.get(key) as T;
+  const v = make();
+  derivedCache.set(key, v);
+  return v;
+}
 
 export function allViews(kind: MediaKind): CategoryView[] {
   const merge = user.get().data.categories[kind].mergeSameName;
@@ -225,6 +240,10 @@ export function isViewLocked(view: CategoryView): boolean {
 
 /** Categories to browse: sorted per prefs, hidden ones removed, locked ones removed in "hide" mode. */
 export function browseViews(kind: MediaKind): CategoryView[] {
+  return derived(`browse|${kind}`, () => computeBrowseViews(kind));
+}
+
+function computeBrowseViews(kind: MediaKind): CategoryView[] {
   const s = user.get();
   const prefs = s.data.categories[kind];
   const hideLocked = !!s.app.parentalPin && s.app.lockMode === 'hide' && !s.unlocked;
@@ -232,11 +251,16 @@ export function browseViews(kind: MediaKind): CategoryView[] {
 }
 
 function watchCount(view: CategoryView): number {
+  const perCat = derived('watchPerCat', () => {
+    const m = new Map<string, number>();
+    for (const h of user.get().data.history) {
+      const it = byKey.get(h.key);
+      if (it) m.set(it.categoryKey, (m.get(it.categoryKey) || 0) + 1);
+    }
+    return m;
+  });
   let n = 0;
-  for (const h of user.get().data.history) {
-    const it = byKey.get(h.key);
-    if (it && view.keys.indexOf(it.categoryKey) >= 0) n++;
-  }
+  for (const k of view.keys) n += perCat.get(k) || 0;
   return n;
 }
 
@@ -259,17 +283,54 @@ export function itemsInView(view: CategoryView, sort?: ItemSort): Item[] {
 
 export function invalidateItemCache(): void {
   itemCache.clear();
+  derivedCache.clear();
 }
 
 export function viewOfItem(item: Item): CategoryView | undefined {
-  return allViews(item.kind).find((v) => v.keys.indexOf(item.categoryKey) >= 0);
+  const views = allViews(item.kind);
+  let c = viewByKeyCache.get(item.kind);
+  if (!c || c.views !== views) {
+    c = { views, map: new Map() };
+    for (const v of views) for (const k of v.keys) c.map.set(k, v);
+    viewByKeyCache.set(item.kind, c);
+  }
+  return c.map.get(item.categoryKey);
+}
+
+/** Number of items in a view, without sorting them. */
+export function countInView(view: CategoryView): number {
+  let n = 0;
+  for (const k of view.keys) n += (byCategory.get(k) || []).length;
+  return n;
+}
+
+/** Every browsable item of a kind ("All"), in category order. */
+export function allBrowseItems(kind: MediaKind): Item[] {
+  const s = user.get();
+  return derived(`all|${kind}|${s.data.categories[kind].itemSort}`, () => {
+    const out: Item[] = [];
+    const lockedOut = !s.unlocked;
+    for (const v of browseViews(kind)) {
+      if (lockedOut && isViewLocked(v)) continue;
+      const list = itemsInView(v);
+      for (let i = 0; i < list.length; i++) out.push(list[i]);
+    }
+    return out;
+  });
 }
 
 export function isItemLocked(item: Item): boolean {
   const s = user.get();
   if (!s.app.parentalPin || s.unlocked) return false;
   const v = viewOfItem(item);
-  return !!v && isViewLocked(v);
+  if (!v) return false;
+  const locked = derived('locked', () => new Map<string, boolean>());
+  let l = locked.get(v.id);
+  if (l === undefined) {
+    l = isViewLocked(v);
+    locked.set(v.id, l);
+  }
+  return l;
 }
 
 export function itemByKey(key: string): Item | undefined {
@@ -286,20 +347,34 @@ export function counts(): Record<MediaKind, number> {
 
 /** Items newest first ("Recently added" rows). */
 export function recentlyAdded(kind: 'movie' | 'series', limit = 40): Item[] {
-  const list: Item[] = kind === 'movie' ? movies : series;
-  return list
-    .filter((i) => i.added && !isItemLocked(i) && !hiddenItem(i))
-    .sort((a, b) => (b.added || 0) - (a.added || 0))
-    .slice(0, limit);
+  const all = derived(`new|${kind}`, () => {
+    const list: Item[] = kind === 'movie' ? movies : series;
+    return list
+      .filter((i) => i.added && !isItemLocked(i) && !hiddenItem(i))
+      .sort((a, b) => (b.added || 0) - (a.added || 0))
+      .slice(0, 200);
+  });
+  return all.slice(0, limit);
 }
 
 function hiddenItem(item: Item): boolean {
   const v = viewOfItem(item);
-  return !!v && isHidden(v, user.get().data.categories[item.kind]);
+  if (!v) return false;
+  const hidden = derived(`hidden|${item.kind}`, () => new Map<string, boolean>());
+  let h = hidden.get(v.id);
+  if (h === undefined) {
+    h = isHidden(v, user.get().data.categories[item.kind]);
+    hidden.set(v.id, h);
+  }
+  return h;
 }
 
 /** Suggestions from watch history: unwatched titles from the categories this profile watches most. */
 export function suggestions(limit = 30): Item[] {
+  return derived(`suggest|${limit}`, () => computeSuggestions(limit));
+}
+
+function computeSuggestions(limit: number): Item[] {
   const s = user.get();
   const watched = new Set(s.data.history.map((h) => h.key));
   const weight = new Map<string, number>();
@@ -309,9 +384,15 @@ export function suggestions(limit = 30): Item[] {
   }
   const pool: Item[] = [];
   const cats = Array.from(weight.keys());
-  const candidates: Item[] = cats.length
-    ? cats.reduce<Item[]>((acc, c) => acc.concat((byCategory.get(c) || []).slice(0, 400)), [])
-    : (movies as Item[]).concat(series).filter((i) => (i.kind === 'movie' || i.kind === 'series') && (i.rating || 0) >= 7);
+  const candidates: Item[] = [];
+  if (cats.length) {
+    for (const c of cats) {
+      const l = byCategory.get(c) || [];
+      for (let i = 0; i < l.length && i < 400; i++) candidates.push(l[i]);
+    }
+  } else {
+    for (const list of [movies, series] as Item[][]) for (const i of list) if (((i as Movie).rating || 0) >= 7) candidates.push(i);
+  }
   for (const it of candidates) {
     if (watched.has(it.key) || isItemLocked(it) || hiddenItem(it)) continue;
     pool.push(it);
@@ -450,19 +531,20 @@ let searchBuild = 0;
 function buildSearch() {
   docItems = (live as Item[]).concat(movies, series);
   docIndexByKey.clear();
-  const docs: SearchDocInput[] = docItems.map((it, i) => {
+  const n = docItems.length;
+  const docs: SearchBuildDocs = { texts: new Array(n), kinds: new Uint8Array(n), numbers: new Int32Array(n), years: new Int16Array(n) };
+  for (let i = 0; i < n; i++) {
+    const it = docItems[i];
     docIndexByKey.set(it.key, i);
-    return {
-      kind: it.kind,
-      text: it.name,
-      number: it.kind === 'live' ? it.number : undefined,
-      group: it.kind === 'live' ? undefined : dedupeKey(it.name, it.year),
-    };
-  });
+    docs.texts[i] = it.name;
+    docs.kinds[i] = DocKind[it.kind];
+    if (it.kind === 'live') docs.numbers![i] = it.number || 0;
+    else docs.years![i] = it.year || 0;
+  }
   const build = ++searchBuild;
   libraryState.set({ searchReady: false });
   searchWorker()
-    .call({ type: 'build', docs })
+    .call({ type: 'build', docs }, undefined, [docs.kinds.buffer, docs.numbers!.buffer, docs.years!.buffer])
     .then(() => {
       if (build !== searchBuild) return;
       libraryState.set({ searchReady: true });
@@ -479,7 +561,11 @@ function buildGuideSearch() {
     for (const p of programmes(ch)) if (p.end > now) guideDocs.push({ channel: ch, programme: p });
   }
   searchWorker()
-    .call({ type: 'build', guide: true, docs: guideDocs.map((g) => ({ kind: 'programme' as const, text: g.programme.title })) })
+    .call({
+      type: 'build',
+      guide: true,
+      docs: { texts: guideDocs.map((g) => g.programme.title), kinds: new Uint8Array(guideDocs.length).fill(DocKind.programme) },
+    })
     .catch(() => undefined);
 }
 
@@ -581,6 +667,7 @@ user.subscribe((s) => {
     itemCache.clear();
   }
   if (s.data !== lastData || s.app !== lastApp || s.unlocked !== lastUnlocked) {
+    derivedCache.clear();
     clearTimeout(filterTimer);
     filterTimer = setTimeout(updateSearchFilters, 300);
   }

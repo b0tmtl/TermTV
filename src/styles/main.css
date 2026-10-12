@@ -175,6 +175,7 @@ img { display: block; }
 
 /* ---------- Grids (virtualized) ---------- */
 .vgrid { position: relative; overflow: hidden; }
+.vgrid-inner { position: absolute; left: 0; top: 0; right: 0; will-change: transform; }
 .vgrid-row { position: absolute; left: 0; white-space: nowrap; display: flex; }
 
 /* ---------- Live TV ---------- */

@@ -1,6 +1,7 @@
 import {
+  anyIdMatches, idMatches,
   buildCategoryViews, defaultCategoryPrefs, filterViews, isHidden, isNew, markKnown, moveCategory,
-  prefixGroups, setHidden, sortCategoryViews, sortItems, visibleCategories,
+  prefixGroups, setHidden, sortCategoryViews, sortItems, visibleCategories, type CategoryView,
 } from '@/core/categories';
 import type { Category, Channel } from '@/core/models';
 
@@ -103,5 +104,16 @@ describe('sortItems', () => {
     expect(sortItems(items, 'az').map((c) => c.name)).toEqual(['US | ABC', 'US | CBS', 'US | NBC']);
     expect(sortItems(items, 'number').map((c) => c.number)).toEqual([2, 4, 10]);
     expect(sortItems(items, 'provider').map((c) => c.order)).toEqual([0, 1, 2]);
+  });
+});
+
+describe('anyIdMatches', () => {
+  it('agrees with idMatches on every combination', () => {
+    const stored = ['a:live:news', '*:live:sports', 'b:movie:drama', '*:movie:kids', 'c:live:music'];
+    const views: CategoryView[] = [];
+    for (const src of ['a', 'b', 'c', '*'])
+      for (const rest of ['live:news', 'live:sports', 'movie:drama', 'movie:kids', 'live:music', 'live:other'])
+        views.push({ id: `${src}:${rest}`, kind: 'live', name: rest, prefix: '', keys: [], sourceIds: src === '*' ? ['a', 'b'] : [src], providerRank: 0 });
+    for (const v of views) expect(anyIdMatches(stored, v)).toBe(stored.some((s) => idMatches(s, v)));
   });
 });

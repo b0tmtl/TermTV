@@ -125,8 +125,19 @@ throttling in the browser with 100k titles: 1-30 ms per key press.
 | `kv/sources` | configured sources (credentials stay on the TV) |
 | `kv/profiles`, `kv/app` | profiles, global settings (language, parental PIN, guide length) |
 | `kv/profile:<id>` | favorites, lists, history, resume points, category choices, locks, settings |
-| `library/<sourceId>` | categories + items (+ M3U episodes) |
-| `epg/<sourceId>` | programmes in the window |
+| `library/<sourceId>#meta`, `#0`, `#1`... | categories + items (+ M3U episodes), compact and chunked (below) |
+| `epg/<sourceId>#meta`, `#0`... | programmes in the window, same format |
+
+The IndexedDB of 2017 TVs refuses one huge record, so caches use `workers/cache-codec.ts`: fields that can
+be rebuilt (`key`, `sourceId`, `kind`, the category key prefix) are dropped, the rest is JSON, gzipped with
+fflate and split into 1 MB `ArrayBuffer` chunks, each written in its own transaction; the `#meta` record is
+written last so a half-written cache is never read. 100k titles: 26 MB of JSON become under 2 MB.
+
+**Keeping the UI thread light.** Anything that touches every title runs once per library or settings change,
+not per render: category lookups are maps, hidden / locked checks are cached per category, "Recently added",
+suggestions and "All" are cached until the library or the profile data changes. Search documents go to the
+worker as parallel arrays, and duplicate groups are computed in the worker. `VGrid` slides one layer with
+`translate3d` instead of moving rows, and Home rows mount 12 cards and grow as focus moves right.
 
 Backup / restore writes `kv` to `termtv-backup.json` on a USB drive.
 

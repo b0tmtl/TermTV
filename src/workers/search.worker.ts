@@ -1,7 +1,8 @@
 // Search worker: holds the search indexes (library + guide) so typing never blocks the UI.
 
-import { SearchIndex } from '@/core/search/engine';
-import type { SearchRequest, SearchResponse } from './protocol';
+import { dedupeKey } from '@/core/normalize';
+import { DocKind, SearchIndex, type DocKindName, type SearchDocInput } from '@/core/search/engine';
+import type { SearchBuildDocs, SearchRequest, SearchResponse } from './protocol';
 
 const ctx = self as unknown as { postMessage(m: SearchResponse): void; onmessage: ((e: MessageEvent) => void) | null };
 const post = (m: SearchResponse) => ctx.postMessage(m);
@@ -17,7 +18,7 @@ ctx.onmessage = (e: MessageEvent) => {
     switch (req.type) {
       case 'build': {
         const t0 = Date.now();
-        const idx = SearchIndex.build(req.docs);
+        const idx = SearchIndex.build(toDocs(req.docs));
         if (req.guide) guide = idx;
         else {
           library = idx;
@@ -55,3 +56,18 @@ ctx.onmessage = (e: MessageEvent) => {
     post({ type: 'error', id: req.id, message: err instanceof Error ? err.message : String(err) });
   }
 };
+
+const KIND_NAMES: Record<number, DocKindName> = {};
+(Object.keys(DocKind) as DocKindName[]).forEach((k) => (KIND_NAMES[DocKind[k]] = k));
+
+function toDocs(d: SearchBuildDocs): SearchDocInput[] {
+  const out: SearchDocInput[] = new Array(d.texts.length);
+  for (let i = 0; i < d.texts.length; i++) {
+    const kind = KIND_NAMES[d.kinds[i]];
+    const doc: SearchDocInput = { kind, text: d.texts[i] };
+    if (d.numbers && d.numbers[i]) doc.number = d.numbers[i];
+    if (kind === 'movie' || kind === 'series') doc.group = dedupeKey(doc.text, (d.years && d.years[i]) || undefined);
+    out[i] = doc;
+  }
+  return out;
+}

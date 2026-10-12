@@ -5,7 +5,7 @@ import type { Item } from '@/core/models';
 import { t } from '@/i18n';
 import { focusById, focusable } from '@/navigation/focus';
 import { navigate, updateRoute } from '@/navigation/router';
-import { allViews, browseViews, invalidateItemCache, isViewLocked, itemByKey, itemsInView, libraryState, recentlyAdded } from '@/state/library';
+import { allBrowseItems, allViews, browseViews, countInView, invalidateItemCache, isViewLocked, itemByKey, itemsInView, libraryState, recentlyAdded } from '@/state/library';
 import { useStore } from '@/state/store';
 import { updateCategoryPrefs, updateData, user } from '@/state/user';
 import { PosterCard, Prompt } from '@/ui/Cards';
@@ -43,7 +43,7 @@ export function VodScreen({ kind, categoryId }: { kind: 'movie' | 'series'; cate
     const views = browseViews(kind);
     let total = 0;
     const entries = views.map((v) => {
-      const count = itemsInView(v).length;
+      const count = countInView(v);
       total += count;
       return { id: v.id, name: v.name, view: v, count };
     });
@@ -65,10 +65,10 @@ export function VodScreen({ kind, categoryId }: { kind: 'movie' | 'series'; cate
     if (cat.id === CONTINUE) return continueList(kind);
     if (cat.id === NEW) return recentlyAdded(kind, 200);
     const views = browseViews(kind);
-    if (cat.id === ALL) return views.reduce<Item[]>((acc, v) => acc.concat(isViewLocked(v) && !user.get().unlocked ? [] : itemsInView(v)), []);
+    if (cat.id === ALL) return allBrowseItems(kind);
     const v = views.find((x) => x.id === cat.id);
     return v ? itemsInView(v) : [];
-  }, [cat && cat.id, data.categories[kind].itemSort, data.favorites, libraryState.get().version]);
+  }, [cat && cat.id, data.categories[kind].itemSort, data.favorites, unlocked, libraryState.get().version]);
 
   if (!cat) {
     return (

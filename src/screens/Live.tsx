@@ -7,7 +7,7 @@ import { formatTime, t } from '@/i18n';
 import { focusById, focusable } from '@/navigation/focus';
 import { navigate, updateRoute } from '@/navigation/router';
 import {
-  allViews, browseViews, fetchShortEpg, invalidateItemCache, isViewLocked, itemByKey, itemsInView, libraryState, nowNext,
+  allBrowseItems, allViews, browseViews, countInView, fetchShortEpg, invalidateItemCache, isViewLocked, itemByKey, itemsInView, libraryState, nowNext,
 } from '@/state/library';
 import { play, player, setWindow, stop } from '@/state/player';
 import { useStore } from '@/state/store';
@@ -41,7 +41,7 @@ export function liveCategories(): CatEntry[] {
   const views = browseViews('live');
   let total = 0;
   const entries = views.map((v) => {
-    const count = itemsInView(v).length;
+    const count = countInView(v);
     total += count;
     return { id: v.id, name: v.name, view: v, count };
   });
@@ -54,7 +54,7 @@ export function channelsFor(id: string): Channel[] {
   if (id === FAV_ID) return d.favorites.map((k) => itemByKey(k)).filter((i) => i && i.kind === 'live') as Channel[];
   if (id === RECENT_ID) return d.history.filter((h) => h.kind === 'live').map((h) => itemByKey(h.key)).filter(Boolean) as Channel[];
   const views = browseViews('live');
-  if (id === ALL_ID) return views.reduce<Channel[]>((acc, v) => acc.concat(isViewLocked(v) && !user.get().unlocked ? [] : (itemsInView(v) as Channel[])), []);
+  if (id === ALL_ID) return allBrowseItems('live') as Channel[];
   const v = views.find((x) => x.id === id) || allViews('live').find((x) => x.id === id);
   return v ? (itemsInView(v) as Channel[]) : [];
 }

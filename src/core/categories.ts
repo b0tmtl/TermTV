@@ -116,14 +116,56 @@ function lookup(index: Map<string, number>, view: CategoryView): number | undefi
   return index.get(`*:${p.rest}`);
 }
 
+/**
+ * Fast `idMatches` against a whole list of stored ids. Lists like `known` hold every category, and
+ * checks run once per item on slow TVs, so a linear scan per check is far too slow.
+ */
+interface IdSet {
+  exact: Set<string>;
+  /** rest ("kind:name") -> stored sources ("*" or a source id) */
+  byRest: Map<string, string[]>;
+}
+
+const idSets = new WeakMap<string[], IdSet>();
+
+function idSet(ids: string[]): IdSet {
+  let s = idSets.get(ids);
+  if (!s) {
+    s = { exact: new Set(ids), byRest: new Map() };
+    for (const id of ids) {
+      const p = parseId(id);
+      const l = s.byRest.get(p.rest);
+      if (l) l.push(p.source);
+      else s.byRest.set(p.rest, [p.source]);
+    }
+    idSets.set(ids, s);
+  }
+  return s;
+}
+
+/** True when any stored id matches the view (same rule as `idMatches`). */
+export function anyIdMatches(ids: string[], view: CategoryView): boolean {
+  if (!ids.length) return false;
+  const s = idSet(ids);
+  if (s.exact.has(view.id)) return true;
+  const p = parseId(view.id);
+  const sources = s.byRest.get(p.rest);
+  if (!sources) return false;
+  for (const src of sources) {
+    if (src === '*') return true;
+    if (p.source === '*' && view.sourceIds.indexOf(src) >= 0) return true;
+  }
+  return false;
+}
+
 export function isHidden(view: CategoryView, prefs: CategoryPrefs): boolean {
-  if (prefs.hidden.some((h) => idMatches(h, view))) return true;
+  if (anyIdMatches(prefs.hidden, view)) return true;
   if (prefs.newCategories === 'hide' && prefs.known.length > 0 && isNew(view, prefs)) return true;
   return false;
 }
 
 export function isNew(view: CategoryView, prefs: CategoryPrefs): boolean {
-  return prefs.known.length > 0 && !prefs.known.some((k) => idMatches(k, view));
+  return prefs.known.length > 0 && !anyIdMatches(prefs.known, view);
 }
 
 export interface SortContext {
@@ -207,7 +249,7 @@ export function filterViews(views: CategoryView[], text: string): CategoryView[]
 /** Marks every current view as known (call after the user opens category management). */
 export function markKnown(prefs: CategoryPrefs, views: CategoryView[]): CategoryPrefs {
   const known = prefs.known.slice();
-  for (const v of views) if (!known.some((k) => idMatches(k, v))) known.push(v.id);
+  for (const v of views) if (!anyIdMatches(prefs.known, v)) known.push(v.id);
   return { ...prefs, known };
 }
 

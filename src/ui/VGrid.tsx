@@ -115,7 +115,7 @@ export function VGrid<T>(p: VGridProps<T>) {
       );
     }
     rows.push(
-      <div class="vgrid-row" key={r} style={{ top: (r - top) * rowHeight + 'px', height: rowHeight + 'px' }}>
+      <div class="vgrid-row" key={r} style={{ top: r * rowHeight + 'px', height: rowHeight + 'px' }}>
         {cells}
       </div>,
     );
@@ -130,7 +130,11 @@ export function VGrid<T>(p: VGridProps<T>) {
         if (el) registerHandlers(el, { onKey });
       }}
     >
-      {rows}
+      {/* Rows sit at fixed positions inside one layer that slides: scrolling moves a GPU layer
+          instead of repainting every poster on screen, which is what made old TVs stutter. */}
+      <div class="vgrid-inner" style={{ transform: `translate3d(0, ${-top * rowHeight}px, 0)` }}>
+        {rows}
+      </div>
     </div>
   );
 }
