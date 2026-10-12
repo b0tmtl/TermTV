@@ -1,0 +1,37 @@
+# Run by hand (Actions -> "Create signing key" -> Run workflow) to create the Tizen author certificate
+# without installing Tizen Studio. Before running, add the TIZEN_AUTHOR_KEY_PW secret (the password).
+# The .p12 is uploaded as an artifact (password-protected, kept 1 day): download it, store it safely,
+# add its base64 as the TIZEN_AUTHOR_KEY secret, then delete the run.
+name: Create signing key
+
+on:
+  workflow_dispatch:
+
+jobs:
+  key:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check password secret
+        env:
+          PW: ${{ secrets.TIZEN_AUTHOR_KEY_PW }}
+        run: |
+          if [ ${#PW} -lt 12 ]; then echo "::error::Add a TIZEN_AUTHOR_KEY_PW secret of at least 12 characters first."; exit 1; fi
+      - name: Install Tizen CLI
+        run: |
+          curl -fLo tizen-installer "https://download.tizen.org/sdk/Installer/tizen-studio_5.6/web-cli_Tizen_Studio_5.6_ubuntu-64.bin"
+          chmod +x tizen-installer
+          ./tizen-installer --accept-license "$GITHUB_WORKSPACE/tizen-studio"
+      - name: Generate certificate
+        env:
+          PW: ${{ secrets.TIZEN_AUTHOR_KEY_PW }}
+        run: |
+          "$GITHUB_WORKSPACE/tizen-studio/tools/ide/bin/tizen" certificate -a TermTV -p "$PW" -n TermTV -o TermTV -f termtv-author
+          mkdir out
+          find "$GITHUB_WORKSPACE" "$HOME" -name termtv-author.p12 -not -path "*/out/*" -exec cp {} out/ \; -quit
+          base64 -w0 out/termtv-author.p12 > out/TIZEN_AUTHOR_KEY.txt
+          ls -la out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: termtv-signing-key
+          path: out/
+          retention-days: 1
