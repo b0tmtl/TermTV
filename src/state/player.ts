@@ -31,6 +31,8 @@ export interface PlayerState {
   reconnecting: number;
   /** Switched to a backup server URL ("trying backup URL n of total"). */
   serverNote: { n: number; total: number } | null;
+  /** Target position while scrubbing with Left/Right (seconds), null when not scrubbing. */
+  scrub: number | null;
   engine: string;
 }
 
@@ -48,6 +50,7 @@ export const player = createStore<PlayerState>({
   windowed: false,
   reconnecting: 0,
   serverNote: null,
+  scrub: null,
   engine: '',
 });
 
@@ -59,6 +62,10 @@ let lastTime = -1;
 let watchdog: ReturnType<typeof setInterval> | undefined;
 let resumeTimer: ReturnType<typeof setInterval> | undefined;
 let triedAltFormat = false;
+/** True once the video has advanced in this session (see saveProgress). */
+let playedThisSession = false;
+let startedAt = 0;
+let playStartedAt = 0;
 /** Backup server URLs tried since the stream last played. */
 let serversTried = 0;
 /** Counts stream loads; errors are handled once per load. */
@@ -76,6 +83,7 @@ const events = {
     if (s === 'ended') onEnded();
   },
   time(t: number) {
+    if (t > 0 && lastTime >= 0 && t > lastTime) playedThisSession = true;
     if (Math.abs(t - lastTime) > 0.2) {
       lastTime = t;
       lastProgressAt = Date.now();
@@ -142,10 +150,14 @@ export async function play(target: PlaybackTarget, opts: { startAt?: number; win
   saveProgress();
   triedAltFormat = false;
   serversTried = 0;
+  playedThisSession = false;
+  startedAt = opts.startAt || 0;
+  playStartedAt = Date.now();
+  clearTimeout(scrubTimer);
   const e = getEngine();
   player.set({
     target, status: 'loading', time: 0, duration: 0, subtitle: '', error: '', audio: [], text: [],
-    audioIndex: -1, textIndex: -1, windowed: !!opts.windowed, reconnecting: 0, serverNote: null,
+    audioIndex: -1, textIndex: -1, windowed: !!opts.windowed, reconnecting: 0, serverNote: null, scrub: null,
   });
   e.setRect(opts.windowed || null);
   currentUrl = urlFor(target);
@@ -240,12 +252,21 @@ function startTimers() {
   resumeTimer = setInterval(saveProgress, 10000);
 }
 
+/**
+ * Saves the resume point. Only once the video has really played in this session: backing out while
+ * it is still loading (position 0) used to erase the resume point (under 30 s counts as "not
+ * started").
+ */
 function saveProgress() {
   const st = player.get();
-  if (!st.target || !engine) return;
+  if (!st.target || !engine || !playedThisSession) return;
   const key = resumeKey(st.target);
   const dur = engine.duration();
-  if (key && dur > 0) saveResume(key, engine.time(), dur);
+  const pos = engine.time();
+  if (!key || !(dur > 0) || !(pos >= 0)) return;
+  // Still before the position we started from: the jump to it hasn't happened yet.
+  if (startedAt > 30 && pos < startedAt - 30 && Date.now() - playStartedAt < 60000) return;
+  saveResume(key, pos, dur);
 }
 
 function onEnded() {
@@ -275,6 +296,64 @@ export function togglePause(): void {
   if (!engine) return;
   if (player.get().status === 'paused') engine.play();
   else engine.pause();
+}
+
+// ---- Scrubbing: Left/Right move a target, one seek when you stop ------------------------------
+// Each seek on an IPTV stream reconnects and buffers (2-3 s), so seeking on every press made going
+// to the middle of a movie take minutes. Presses now move a marker, faster the longer you hold, and
+// the player seeks once.
+
+let scrubTimer: ReturnType<typeof setTimeout> | undefined;
+let lastScrubKeyAt = 0;
+let scrubRun = 0;
+
+const SCRUB_STEPS = [10, 10, 10, 30, 30, 30, 60, 60, 60, 60, 120, 120, 120, 120, 300];
+
+function scrubbable(): boolean {
+  const st = player.get();
+  return !!engine && !!st.target && st.target.kind !== 'live' && engine.duration() > 0;
+}
+
+/** Moves the scrub target one step back (-1) or forward (1); steps grow while the key is held. */
+export function scrubStep(dir: 1 | -1): void {
+  if (!scrubbable()) return;
+  const now = Date.now();
+  scrubRun = now - lastScrubKeyAt < 700 ? scrubRun + 1 : 0;
+  lastScrubKeyAt = now;
+  const step = SCRUB_STEPS[Math.min(scrubRun, SCRUB_STEPS.length - 1)];
+  const st = player.get();
+  const from = st.scrub !== null ? st.scrub : engine!.time();
+  scrubSet(from + dir * step);
+}
+
+/** Jumps the scrub target to a fraction of the duration (number keys: 0 = start, 5 = half). */
+export function scrubToFraction(f: number): void {
+  if (!scrubbable()) return;
+  scrubSet(engine!.duration() * f);
+}
+
+function scrubSet(t: number): void {
+  const dur = engine!.duration();
+  player.set({ scrub: Math.max(0, Math.min(dur - 3, t)) });
+  clearTimeout(scrubTimer);
+  scrubTimer = setTimeout(commitScrub, 1000);
+}
+
+/** Seeks to the scrub target now (OK, or one second after the last press). */
+export function commitScrub(): boolean {
+  clearTimeout(scrubTimer);
+  const t = player.get().scrub;
+  if (t === null) return false;
+  player.set({ scrub: null });
+  seekTo(t);
+  return true;
+}
+
+export function cancelScrub(): boolean {
+  clearTimeout(scrubTimer);
+  if (player.get().scrub === null) return false;
+  player.set({ scrub: null });
+  return true;
 }
 
 export function seekBy(seconds: number): void {

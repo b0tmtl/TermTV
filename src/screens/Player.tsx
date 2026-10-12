@@ -8,7 +8,7 @@ import { focusById, focusable } from '@/navigation/focus';
 import { back } from '@/navigation/router';
 import type { KeyInfo } from '@/platform/tv';
 import { nowNext } from '@/state/library';
-import { nextEpisode, play, player, retry, seekBy, selectAudio, selectText, setAspect, setWindow, stop, togglePause, zap } from '@/state/player';
+import { cancelScrub, commitScrub, nextEpisode, play, player, retry, scrubStep, scrubToFraction, selectAudio, selectText, setAspect, setWindow, stop, togglePause, zap } from '@/state/player';
 import { useStore } from '@/state/store';
 import { isFavorite, user } from '@/state/user';
 import { Img } from '@/ui/Cards';
@@ -118,13 +118,15 @@ export function PlayerScreen() {
     }
     switch (k.key) {
       case 'back':
+        if (cancelScrub()) return showControls('pc:seek'), true;
         if (controls && st.status === 'playing' && !live) {
           setControls(false);
           return true;
         }
         return false;
       case 'digit':
-        if (!live) return false;
+        // Movies and episodes: 0-9 jump to 0%-90% (shown on the bar, seeks a second later).
+        if (!live) return scrubToFraction((k.digit || 0) / 10), showControls('pc:seek'), true;
         clearTimeout(digitTimer.current);
         const d = (digits + k.digit).slice(-4);
         setDigits(d);
@@ -151,10 +153,10 @@ export function PlayerScreen() {
           setTimeout(() => focusById(`pl:${Math.max(0, list.findIndex((c) => c.key === target.channel.key))}`), 30);
           return true;
         }
-        if (!controls) return seekBy(-10), showControls('pc:seek'), true;
+        if (!controls) return scrubStep(-1), showControls('pc:seek'), true;
         return false;
       case 'right':
-        if (!live && !controls) return seekBy(10), showControls('pc:seek'), true;
+        if (!live && !controls) return scrubStep(1), showControls('pc:seek'), true;
         return false;
       case 'enter':
         if (live) {
@@ -172,9 +174,9 @@ export function PlayerScreen() {
         showControls(live ? undefined : 'pc:seek');
         return true;
       case 'ff':
-        return seekBy(30), showControls('pc:seek'), true;
+        return scrubStep(1), showControls('pc:seek'), true;
       case 'rw':
-        return seekBy(-30), showControls('pc:seek'), true;
+        return scrubStep(-1), showControls('pc:seek'), true;
       case 'next':
         return nextEpisode(1), true;
       case 'prev':
@@ -201,6 +203,7 @@ export function PlayerScreen() {
   let title = '';
   let sub = '';
   let progress = 0;
+  let scrubAt: number | null = null;
   let left = '';
   let right = '';
   if (target.kind === 'live') {
@@ -218,6 +221,7 @@ export function PlayerScreen() {
     title = target.kind === 'movie' ? splitYear(cleanTitle(target.movie.name)).title : cleanTitle(target.series.name);
     sub = target.kind === 'episode' ? `S${target.episode.season} · E${target.episode.episode}  ${target.episode.title}` : '';
     progress = st.duration ? st.time / st.duration : 0;
+    scrubAt = st.scrub !== null && st.duration ? Math.max(0, Math.min(1, st.scrub / st.duration)) : null;
     left = formatDuration(st.time);
     right = st.duration ? '-' + formatDuration(st.duration - st.time) : '';
   }
@@ -269,6 +273,14 @@ export function PlayerScreen() {
               <>
                 <div class="bar" {...(!live ? focusable({ id: 'pc:seek', onKey: seekKeys }) : {})} style={{ outline: 'none' }}>
                   <i style={{ width: Math.max(0, Math.min(1, progress)) * 100 + '%' }} />
+                  {scrubAt !== null && (
+                    <b class="scrub" style={{ left: scrubAt * 100 + '%' }}>
+                      <span class="scrub-label">
+                        {formatDuration(st.scrub!)}
+                        <span class="dim"> ({st.scrub! >= st.time ? '+' : '-'}{formatDuration(Math.abs(st.scrub! - st.time))})</span>
+                      </span>
+                    </b>
+                  )}
                 </div>
                 <div class="times">
                   <span>{left}</span>
@@ -279,17 +291,15 @@ export function PlayerScreen() {
             )}
             {!live && (
               <div class="controls">
-                <span class="btn small" {...focusable({ id: 'pc:rw', onEnter: () => seekBy(-10) })}>
+                <span class="btn small" {...focusable({ id: 'pc:rw', onEnter: () => scrubStep(-1) })}>
                   <Icon name="rw" />
-                  10s
                 </span>
                 <span class="btn small" {...focusable({ id: 'pc:play', onEnter: togglePause })}>
                   <Icon name={st.status === 'paused' ? 'play' : 'pause'} />
                   {st.status === 'paused' ? t('player.play') : t('player.pause')}
                 </span>
-                <span class="btn small" {...focusable({ id: 'pc:ff', onEnter: () => seekBy(10) })}>
+                <span class="btn small" {...focusable({ id: 'pc:ff', onEnter: () => scrubStep(1) })}>
                   <Icon name="ff" />
-                  10s
                 </span>
                 <span class="btn small" {...focusable({ id: 'pc:tracks', onEnter: trackMenu })}>
                   <Icon name="subs" />
@@ -356,9 +366,9 @@ export function PlayerScreen() {
   );
 
   function seekKeys(k: KeyInfo): boolean {
-    if (k.key === 'left') return seekBy(-10), showControls(), true;
-    if (k.key === 'right') return seekBy(10), showControls(), true;
-    if (k.key === 'enter') return togglePause(), showControls(), true;
+    if (k.key === 'left') return scrubStep(-1), showControls(), true;
+    if (k.key === 'right') return scrubStep(1), showControls(), true;
+    if (k.key === 'enter') return (commitScrub() || togglePause()), showControls(), true;
     if (k.key === 'down') return focusById('pc:play'), showControls(), true;
     showControls();
     return false;

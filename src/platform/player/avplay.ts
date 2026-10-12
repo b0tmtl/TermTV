@@ -34,6 +34,8 @@ export class AvPlayEngine implements PlayerEngine {
   readonly name = 'AVPlay';
   private av = webapis.avplay;
   private obj: HTMLObjectElement;
+  /** Counts loads: a delayed resume retry must not seek a stream that replaced this one. */
+  private loads = 0;
   private rect: Rect | null = null;
   private audio = -1;
   private text = -1;
@@ -53,6 +55,7 @@ export class AvPlayEngine implements PlayerEngine {
   }
 
   load(url: string, opts: LoadOptions): Promise<void> {
+    const loadId = ++this.loads;
     this.close();
     this.ev.status('loading');
     this.audio = -1;
@@ -84,15 +87,32 @@ export class AvPlayEngine implements PlayerEngine {
         this.applyRect();
         this.av.prepareAsync(
           () => {
-            const start = () => {
-              this.av.play();
-              this.ev.status('playing');
-              this.ev.tracks();
-              resolve();
-            };
+            this.av.play();
+            this.ev.status('playing');
+            this.ev.tracks();
+            resolve();
+            // Resume: seek once playing. A seekTo before play() is ignored by some firmware (the
+            // movie restarted at 0:00); check that it landed and try again once.
             if (opts.startAt && opts.startAt > 5 && !opts.live) {
-              this.av.seekTo(Math.floor(opts.startAt * 1000), start, start);
-            } else start();
+              const target = Math.floor(opts.startAt * 1000);
+              const landed = () => this.time() * 1000 >= target - 15000;
+              const seek = (retry: boolean) => {
+                if (loadId !== this.loads) return;
+                try {
+                  this.av.seekTo(
+                    target,
+                    () => (this.lastTime = target / 1000),
+                    () => retry && setTimeout(() => seek(false), 1500),
+                  );
+                } catch {
+                  if (retry) setTimeout(() => seek(false), 1500);
+                }
+              };
+              seek(true);
+              setTimeout(() => {
+                if (loadId === this.loads && !landed()) seek(false);
+              }, 4000);
+            }
           },
           (err: unknown) => {
             const msg = typeof err === 'string' ? err : 'PLAYER_ERROR';
