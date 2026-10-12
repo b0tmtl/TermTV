@@ -24,6 +24,7 @@ function cardKeys(item: Item) {
 
 export function HomeScreen() {
   const status = useStore(libraryState, (s) => s.status);
+  const stage = useStore(libraryState, (s) => s.stage);
   useStore(libraryState, (s) => s.version);
   useStore(libraryState, (s) => s.epgVersion);
   const refreshing = useStore(libraryState, (s) => s.refreshing);
@@ -41,6 +42,11 @@ export function HomeScreen() {
           <div style={{ fontSize: 28, marginTop: 60 }}>
             <span class="spinner" style={{ marginRight: 24 }} />
             {t('home.loading')}
+            {stage && (
+              <div class="status-line" style={{ marginTop: 16 }}>
+                {t(stage === 'readCache' ? 'home.readingCache' : 'home.decodingCache')}
+              </div>
+            )}
             {ids.map((id) => (
               <div key={id} class="status-line" style={{ marginTop: 16 }}>
                 {(sources.find((s) => s.id === id) || { name: id }).name}: {stageLabel(refreshing[id].stage, refreshing[id].loaded, refreshing[id].total)}

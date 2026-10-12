@@ -5,6 +5,7 @@
 // written last so a half-written cache is never read.
 
 import { dbDelete, dbGet, dbKeys, dbPut } from '@/platform/db';
+import * as files from '@/platform/filestore';
 import { deleteFile, fileStoreAvailable, readFile, writeFile } from '@/platform/filestore';
 import { FORMAT, type CacheMeta } from '@/workers/cache-codec';
 import { createStore } from './store';
@@ -24,6 +25,9 @@ export interface CacheNote {
   loaded?: boolean;
   /** Step in progress ("writing file"...), shown in Settings > About while saving. */
   stage?: string;
+  /** "read in 1200 ms (direct)", "unpacked 120000 titles in 900 ms". */
+  read?: string;
+  decode?: string;
   /** Where it is stored. */
   where?: 'file' | 'idb';
 }
@@ -134,7 +138,7 @@ export async function loadCache(store: CacheStore, key: string): Promise<ArrayBu
       const buf = await withTimeout(readFile(fileName(store, key)), 60000, 'Reading cache file');
       if (buf && buf.byteLength) {
         const m = await dbGet<{ bytes: number; savedAt: number }>('kv', fileMetaKey(store, key)).catch(() => undefined);
-        note(store, key, { ok: true, bytes: buf.byteLength, at: m ? m.savedAt : Date.now(), loaded: true, where: 'file' });
+        note(store, key, { ok: true, bytes: buf.byteLength, at: m ? m.savedAt : Date.now(), loaded: true, where: 'file', read: 'read ' + files.lastReadMethod });
         return [buf];
       }
     } catch (e) {

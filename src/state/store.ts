@@ -32,17 +32,20 @@ export function useStore<T extends object, S>(store: Store<T>, selector: (s: T) 
   sel.current = selector;
   const last = useRef<S>(selector(store.get()));
   last.current = selector(store.get());
-  useEffect(
-    () =>
-      store.subscribe((s) => {
-        const next = sel.current(s);
-        if (!shallowEqual(next, last.current)) {
-          last.current = next;
-          force((n) => n + 1);
-        }
-      }),
-    [store],
-  );
+  useEffect(() => {
+    const check = (s: T) => {
+      const next = sel.current(s);
+      if (!shallowEqual(next, last.current)) {
+        last.current = next;
+        force((n) => n + 1);
+      }
+    };
+    const off = store.subscribe(check);
+    // Effects run after the first paint: catch changes made between render and subscribing
+    // (e.g. the library starting to load right after the app renders).
+    check(store.get());
+    return off;
+  }, [store]);
   return last.current;
 }
 

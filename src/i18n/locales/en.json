@@ -115,7 +115,9 @@
     "noSources": "No source yet. Add your IPTV provider to start watching.",
     "emptyLibrary": "Your sources didn't return anything.",
     "seeAll": "See all",
-    "startHint": "Watch something and it will show up here: favorites, lists and where you left off."
+    "startHint": "Watch something and it will show up here: favorites, lists and where you left off.",
+    "readingCache": "Reading your saved list…",
+    "decodingCache": "Unpacking your saved list…"
   },
   "live": {
     "favorites": "Favorites",

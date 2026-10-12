@@ -39,3 +39,16 @@ describe('cache codec', () => {
     console.log(`100k titles: ${(raw / 1e6).toFixed(1)} MB JSON -> ${(bytes / 1e6).toFixed(2)} MB in ${chunks.length} chunks`);
   });
 });
+
+describe('cache codec compatibility', () => {
+  it('still reads rows saved as objects (0.1.7 - 0.1.10)', () => {
+    const lib = bigLibrary(20);
+    const packed = packLibrary(lib) as Record<string, any>;
+    const fromCols = (c: { f: string[]; r: unknown[][] }) =>
+      c.r.map((a) => Object.fromEntries(a.map((v, i) => [c.f[i], v]).filter(([, v]) => v !== null)));
+    const old: Record<string, any> = { ...packed, live: fromCols(packed.live), movies: fromCols(packed.movies), series: fromCols(packed.series) };
+    old.cats = { live: fromCols(packed.cats.live), movie: fromCols(packed.cats.movie), series: fromCols(packed.cats.series) };
+    const back = unpackLibrary<typeof lib>(decode(encode(old)));
+    expect(JSON.parse(JSON.stringify(back.movies))).toEqual(JSON.parse(JSON.stringify(lib.movies)));
+  });
+});

@@ -23,6 +23,8 @@ export interface LibraryStatus {
   version: number;
   epgVersion: number;
   searchReady: boolean;
+  /** Startup step while the saved library loads: 'readCache' | 'decodeCache'. */
+  stage?: string;
 }
 
 export const libraryState = createStore<LibraryStatus>({
@@ -112,13 +114,20 @@ export async function initLibrary(): Promise<void> {
   libraryState.set({ status: 'loading' });
   await Promise.all(
     sources.map(async (s) => {
+      libraryState.set({ stage: 'readCache' });
       const lib = await loadCache('library', s.id);
       if (lib) {
+        libraryState.set({ stage: 'decodeCache' });
+        const t0 = Date.now();
         const res = await libraryWorker().call({ type: 'decode', store: 'library', chunks: lib }, undefined, lib).catch((e) => {
           cacheState.set((c) => ({ library: { ...c.library, [s.id]: { ok: false, at: Date.now(), error: 'Decode: ' + String(e && e.message) } } }));
           return null;
         });
-        if (res && res.type === 'library' && res.library) sourceLibs.set(s.id, res.library);
+        if (res && res.type === 'library' && res.library) {
+          sourceLibs.set(s.id, res.library);
+          const n = res.library.live.length + res.library.movies.length + res.library.series.length;
+          cacheState.set((c) => ({ library: { ...c.library, [s.id]: { ...c.library[s.id], decode: 'unpacked ' + n + ' titles in ' + (Date.now() - t0) + ' ms' } } }));
+        }
       }
       const epg = await loadCache('epg', s.id);
       if (epg) {
@@ -127,6 +136,7 @@ export async function initLibrary(): Promise<void> {
       }
     }),
   );
+  libraryState.set({ stage: undefined });
   combine();
   libraryState.set((s) => ({ epgVersion: s.epgVersion + 1 }));
   const stale = sources.filter((s) => !sourceLibs.has(s.id) || user.get().app.refreshOnLaunch);

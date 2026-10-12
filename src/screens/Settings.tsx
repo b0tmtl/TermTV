@@ -451,6 +451,7 @@ function CacheStatus() {
         return (
           <div key={src.id} class={c && !c.ok ? 'bad' : ''} style={{ fontSize: 21 }}>
             {text}
+            {c && c.loaded && (c.read || c.decode) ? <div class="faint">{[c.read, c.decode].filter(Boolean).join(' · ')}</div> : null}
           </div>
         );
       })}

@@ -77,3 +77,63 @@ export function dbKeys(store: StoreName): Promise<string[]> {
 export function dbClear(store: StoreName): Promise<void> {
   return tx<void>(store, 'readwrite', (s) => s.clear());
 }
+
+const BACKUP_KEY = 'termtv-kv-backup';
+
+/**
+ * Deletes and recreates the database, keeping the small `kv` store (settings, profiles, favorites).
+ * Old TVs don't give back the space of deleted records: after the big library caches of earlier
+ * versions, the database stayed over its quota and even settings could no longer be saved.
+ * The kv records are copied to localStorage first, so closing the app midway loses nothing.
+ */
+export async function rebuildDatabase(): Promise<number> {
+  const entries: Array<[string, unknown]> = [];
+  await tx<void>('kv', 'readonly', (s) => {
+    const req = s.openCursor();
+    req.onsuccess = () => {
+      const c = req.result;
+      if (c) {
+        entries.push([String(c.key), c.value]);
+        c.continue();
+      }
+    };
+  });
+  try {
+    localStorage.setItem(BACKUP_KEY, JSON.stringify(entries));
+  } catch {
+    /* no backup possible: still safe unless the app is closed in the next second */
+  }
+  const db = await open();
+  db.close();
+  dbPromise = null;
+  await new Promise<void>((resolve, reject) => {
+    const req = indexedDB.deleteDatabase(DB_NAME);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(asError(req.error));
+    req.onblocked = () => resolve(); // completes once other connections close
+  });
+  await restoreEntries(entries);
+  return entries.length;
+}
+
+async function restoreEntries(entries: Array<[string, unknown]>): Promise<void> {
+  for (const [k, v] of entries) await dbPut('kv', k, v);
+  try {
+    localStorage.removeItem(BACKUP_KEY);
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Restores settings if a rebuild was interrupted. */
+export async function recoverInterruptedRebuild(): Promise<boolean> {
+  let raw: string | null = null;
+  try {
+    raw = localStorage.getItem(BACKUP_KEY);
+  } catch {
+    return false;
+  }
+  if (!raw) return false;
+  await restoreEntries(JSON.parse(raw) as Array<[string, unknown]>);
+  return true;
+}

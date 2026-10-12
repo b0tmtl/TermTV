@@ -23,7 +23,7 @@ export interface CacheMeta {
 type Row = Record<string, unknown>;
 
 /** Drops `key`, `sourceId`, `kind` and the category key prefix when they follow the usual pattern. */
-function packRows(rows: Array<Item | Category>, sid: string, kind: string): Row[] {
+function packRowObjects(rows: Array<Item | Category>, sid: string, kind: string): Row[] {
   const prefix = `${sid}:${kind}:`;
   return rows.map((r) => {
     const o: Row = {};
@@ -44,7 +44,8 @@ function packRows(rows: Array<Item | Category>, sid: string, kind: string): Row[
   });
 }
 
-function unpackRows<T>(rows: Row[], sid: string, kind: string): T[] {
+function unpackRows<T>(packed: Row[] | Columns, sid: string, kind: string): T[] {
+  const rows = Array.isArray(packed) ? packed : fromColumns(packed);
   const prefix = `${sid}:${kind}:`;
   for (const o of rows) {
     if (o.sourceId === undefined) o.sourceId = sid;
@@ -56,6 +57,43 @@ function unpackRows<T>(rows: Row[], sid: string, kind: string): T[] {
     }
   }
   return rows as unknown as T[];
+}
+
+/**
+ * Rows as columns: field names once, then one array of values per row. Half the JSON of objects
+ * with repeated keys, and JSON.parse on a TV is about twice as fast.
+ */
+interface Columns {
+  f: string[];
+  r: unknown[][];
+}
+
+function packRows(rows: Array<Item | Category>, sid: string, kind: string): Columns {
+  const objs = packRowObjects(rows, sid, kind);
+  const f: string[] = [];
+  const idx: Record<string, number> = {};
+  for (const o of objs) for (const k in o) if (idx[k] === undefined) idx[k] = f.push(k) - 1;
+  const r = objs.map((o) => {
+    const a: unknown[] = new Array(f.length);
+    for (let i = 0; i < f.length; i++) a[i] = o[f[i]] === undefined ? null : o[f[i]];
+    // Trailing empty fields are dropped.
+    let n = a.length;
+    while (n > 0 && a[n - 1] === null) n--;
+    a.length = n;
+    return a;
+  });
+  return { f, r };
+}
+
+function fromColumns(c: Columns): Row[] {
+  const out: Row[] = new Array(c.r.length);
+  for (let i = 0; i < c.r.length; i++) {
+    const a = c.r[i];
+    const o: Row = {};
+    for (let j = 0; j < a.length; j++) if (a[j] !== null) o[c.f[j]] = a[j];
+    out[i] = o;
+  }
+  return out;
 }
 
 interface LibraryLike {
@@ -86,14 +124,14 @@ export function packLibrary<L extends LibraryLike>(lib: L): Row {
 export function unpackLibrary<L>(o: Row): L {
   if (!o.packed) return o as unknown as L;
   const sid = o.sourceId as string;
-  const cats = o.cats as Record<string, Row[]>;
+  const cats = o.cats as Record<string, Row[] | Columns>;
   o.categories = unpackRows<Category>(cats.live, sid, 'live')
     .concat(unpackRows<Category>(cats.movie, sid, 'movie'), unpackRows<Category>(cats.series, sid, 'series'));
   delete o.cats;
   delete o.packed;
-  o.live = unpackRows(o.live as Row[], sid, 'live');
-  o.movies = unpackRows(o.movies as Row[], sid, 'movie');
-  o.series = unpackRows(o.series as Row[], sid, 'series');
+  o.live = unpackRows(o.live as Row[] | Columns, sid, 'live');
+  o.movies = unpackRows(o.movies as Row[] | Columns, sid, 'movie');
+  o.series = unpackRows(o.series as Row[] | Columns, sid, 'series');
   return o as unknown as L;
 }
 

@@ -3,7 +3,7 @@
 
 import { defaultCategoryPrefs, type CategoryPrefs } from '@/core/categories';
 import type { MediaKind, Source } from '@/core/models';
-import { dbGet, dbPut } from '@/platform/db';
+import { dbGet, dbPut, rebuildDatabase } from '@/platform/db';
 import { createStore } from './store';
 
 export type ThemeId = 'midnight' | 'matrix' | 'amber' | 'purple' | 'synthwave' | 'paper';
@@ -176,9 +176,19 @@ const timers: Record<string, ReturnType<typeof setTimeout>> = {};
 function saveLater(key: string, value: () => unknown, ms = 400) {
   clearTimeout(timers[key]);
   timers[key] = setTimeout(() => {
-    dbPut('kv', key, value()).catch((e) => console.warn('save failed', key, e));
+    dbPut('kv', key, value()).catch((e: Error) => {
+      console.warn('save failed', key, e);
+      // The database is over its quota (old TVs don't reclaim deleted space): rebuild it once, retry.
+      if (!rebuilt && /Quota/i.test(String(e && e.message))) {
+        rebuilt = true;
+        rebuildDatabase()
+          .then(() => dbPut('kv', key, value()))
+          .catch((e2) => console.warn('rebuild failed', e2));
+      }
+    });
   }, ms);
 }
+let rebuilt = false;
 
 export function saveSources(sources: Source[]): void {
   user.set({ sources });
