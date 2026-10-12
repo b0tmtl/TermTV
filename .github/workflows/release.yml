@@ -66,6 +66,14 @@ jobs:
             find "$HOME" "$GITHUB_WORKSPACE" -name 'termtv-author.p12' -not -path "$GITHUB_WORKSPACE/author/*" -exec cp {} "$GITHUB_WORKSPACE/author/termtv-author.p12" \; -quit
           fi
           test -s "$GITHUB_WORKSPACE/author/termtv-author.p12"
+          export PW
+          # Fail early with a clear message when the key or its password is wrong.
+          if ! openssl pkcs12 -in "$GITHUB_WORKSPACE/author/termtv-author.p12" -passin env:PW -noout -legacy 2>/dev/null \
+             && ! openssl pkcs12 -in "$GITHUB_WORKSPACE/author/termtv-author.p12" -passin env:PW -noout 2>/dev/null; then
+            echo "::error::TIZEN_AUTHOR_KEY can't be opened with TIZEN_AUTHOR_KEY_PW: the base64 text or the password is wrong."
+            head -c 4 "$GITHUB_WORKSPACE/author/termtv-author.p12" | od -An -tx1
+            exit 1
+          fi
           PROFILES="$GITHUB_WORKSPACE/tizen-studio-data/profile/profiles.xml"
           sed -e "s|\$WS|$GITHUB_WORKSPACE|g" -e "s|\$KEY_PW|$PW|g" .github/tizen/profiles.xml > "$PROFILES"
           "$TIZEN" cli-config "profiles.path=$PROFILES"
@@ -74,8 +82,8 @@ jobs:
         run: |
           mkdir -p build
           expect -c "set timeout -1; spawn $GITHUB_WORKSPACE/tizen-studio/tools/ide/bin/tizen package -t wgt -s TermTV -o build -- dist; expect eof"
-          WGT=$(ls build/*.wgt | head -1)
-          test -n "$WGT"
+          WGT=$(ls build/*.wgt 2>/dev/null | head -1)
+          if [ -z "$WGT" ]; then tail -60 tizen-studio-data/cli/logs/cli.log "$GITHUB_WORKSPACE/tizen-studio-data/cli/logs/cli.log" 2>/dev/null; exit 1; fi
           [ "$WGT" = build/TermTV.wgt ] || mv "$WGT" build/TermTV.wgt
           ls -la build
 
