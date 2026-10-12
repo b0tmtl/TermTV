@@ -10,7 +10,7 @@ import type { Category, Channel, Episode, Item, MediaKind, Movie, Programme, Ser
 import { ALL_KINDS, DocKind, type SearchResult } from '@/core/search/engine';
 import { XtreamClient } from '@/providers/xtream';
 import type { EpgChannelRef, SearchBuildDocs, SourceEpg, SourceLibrary } from '@/workers/protocol';
-import { cacheState, deleteCache, loadCache, saveCache } from './cache';
+import { cacheState, deleteCache, loadCache, noteStage, saveCache, withTimeout } from './cache';
 import { createStore } from './store';
 import { updateCategoryPrefs, user } from './user';
 import { libraryWorker, searchWorker } from './workers';
@@ -137,7 +137,8 @@ export async function initLibrary(): Promise<void> {
 /** Has the worker compress the last refresh, then stores it (in the background). */
 async function persist(store: 'library' | 'epg', sourceId: string): Promise<void> {
   try {
-    const res = await libraryWorker().call({ type: 'encode', store, key: sourceId });
+    noteStage(store, sourceId, 'compressing');
+    const res = await withTimeout(libraryWorker().call({ type: 'encode', store, key: sourceId }), 180000, 'Compressing');
     if (res.type === 'encoded') await saveCache(store, sourceId, res.chunks);
   } catch (e) {
     if (store === 'library') cacheState.set((c) => ({ library: { ...c.library, [sourceId]: { ok: false, at: Date.now(), error: 'Compress: ' + String(e && (e as Error).message) } } }));

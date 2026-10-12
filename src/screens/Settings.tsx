@@ -8,7 +8,7 @@ import { navigate, resetTo, updateRoute } from '@/navigation/router';
 import { BACKUP_NAME, openTextFile, saveTextFile } from '@/platform/files';
 import { deviceInfo } from '@/platform/tv';
 import { counts, forgetSource, libraryState, refreshEpg, refreshSource, refreshSources, sourceLibrary, sourcesChanged } from '@/state/library';
-import { cacheState } from '@/state/cache';
+import { cacheState, testStorage } from '@/state/cache';
 import { useStore } from '@/state/store';
 import {
   exportBackup, importBackup, saveSources, updateApp, updateCategoryPrefs, updateSettings, user, type ProfileSettings, type SubtitleStyle, type ThemeId,
@@ -429,8 +429,25 @@ function CacheStatus() {
       {t('about.cache')}:
       {sources.map((src) => {
         const c = cache[src.id];
-        const vars = { source: src.name, size: size(c && c.bytes), date: c ? formatDate(c.at) : '', error: (c && c.error) || '' };
-        const text = !c ? t('about.cacheNone', vars) : !c.ok ? t('about.cacheFailed', vars) : c.loaded ? t('about.cacheLoaded', vars) : t('about.cacheSaved', vars);
+        const vars = {
+          source: src.name,
+          size: size(c && c.bytes),
+          date: c ? formatDate(c.at) : '',
+          error: (c && c.error) || '',
+          stage: (c && c.stage) || '',
+          where: c && c.where === 'file' ? t('about.whereFile') : t('about.whereIdb'),
+        };
+        const text = !c
+          ? t('about.cacheNone', vars)
+          : c.stage
+            ? t('about.cacheWorking', vars)
+            : !c.ok
+              ? t('about.cacheFailed', vars)
+              : !c.bytes
+                ? t('about.cacheNone', vars)
+                : c.loaded
+                  ? t('about.cacheLoaded', vars)
+                  : t('about.cacheSaved', vars);
         return (
           <div key={src.id} class={c && !c.ok ? 'bad' : ''} style={{ fontSize: 21 }}>
             {text}
@@ -461,6 +478,17 @@ function AboutPane() {
       <div style={{ marginTop: 20 }}>
         <span class="btn" {...focusable({ onEnter: () => alertDialog(t('about.credits'), t('about.creditsText')) })}>
           {t('about.credits')}
+        </span>
+        <span
+          class="btn"
+          {...focusable({
+            onEnter: async () => {
+              toast(t('about.testStorageRunning'));
+              alertDialog(t('about.testStorage'), (await testStorage()).join('\n'));
+            },
+          })}
+        >
+          {t('about.testStorage')}
         </span>
       </div>
     </div>

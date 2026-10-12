@@ -412,9 +412,14 @@
     "credits": "Credits",
     "creditsText": "Preact (MIT) · hls.js (Apache-2.0) · mpegts.js (Apache-2.0) · fflate (MIT) · JetBrains Mono (OFL-1.1)",
     "cache": "Library cache",
-    "cacheSaved": "{source}: saved, {size} ({date})",
-    "cacheLoaded": "{source}: loaded from cache, {size} (saved {date})",
+    "cacheSaved": "{source}: saved, {size} in {where} ({date})",
+    "cacheLoaded": "{source}: loaded from cache, {size} in {where} (saved {date})",
     "cacheFailed": "{source}: not saved, {error}",
-    "cacheNone": "{source}: not saved yet"
+    "cacheNone": "{source}: not saved yet",
+    "cacheWorking": "{source}: {stage}…",
+    "whereFile": "a file",
+    "whereIdb": "browser storage",
+    "testStorage": "Test storage",
+    "testStorageRunning": "Testing storage…"
   }
 }
