@@ -136,7 +136,8 @@ The IndexedDB of 2017 TVs refuses one huge record, so caches use `workers/cache-
 be rebuilt (`key`, `sourceId`, `kind`, the category key prefix) are dropped, the rest is JSON, gzipped with
 fflate and split into 1 MB `ArrayBuffer` chunks, each written in its own transaction; the `#meta` record is
 written last so a half-written cache is never read. The worker only compresses and decompresses; the main
-thread stores (`state/cache.ts`). **On a TV the cache is a file** in the app's private folder
+thread stores (`state/cache.ts`). **Where:** browser storage when the cache fits next to a 2 MB reserve for
+settings (it reads natively: ~0.2 s for 2.3 MB), otherwise **a file** in the app's private folder
 (`platform/filestore.ts`, `wgt-private/library-<source>.bin`): IndexedDB's quota on 2017 TVs is only a few MB
 (QuotaExceededError). IndexedDB is the desktop path and the fallback; a TV that refuses `ArrayBuffer` values
 gets the chunks as strings. Settings → About shows whether
@@ -145,6 +146,11 @@ each source's library was saved or loaded from the cache, or why saving failed. 
 **Home snapshot.** The titles Home shows are saved in a small file (`home-<profile>.json`); at launch Home
 renders from it at once while the full library loads, and screens that need the whole library show a
 spinner until then.
+
+**Decoding.** The worker only gunzips and hands the JSON bytes back as a transferable (no copy); the UI
+thread parses them. Receiving already-parsed objects from a worker (structured clone) was about 5x slower
+than `JSON.parse` of the same data. Rows are stored as columns and rebuilt in one pass into same-shaped
+objects. Settings > About shows read / gunzip / parse / unpack / ready times per source.
 
 **Keeping the UI thread light.** Anything that touches every title runs once per library or settings change,
 not per render: category lookups are maps, hidden / locked checks are cached per category, "Recently added",

@@ -8,7 +8,7 @@ import type { PlayerEngine, PlayerStatus, Rect, Track } from '@/platform/player/
 import { setScreenSaver } from '@/platform/tv';
 import { episodeUrl, playableUrl, streamUrl } from './library';
 import { createStore } from './store';
-import { recordHistory, saveResume, user } from './user';
+import { BUFFER_SECONDS, recordHistory, saveResume, user } from './user';
 
 export type PlaybackTarget =
   | { kind: 'live'; channel: Channel; list: Channel[] }
@@ -153,7 +153,8 @@ async function load(startAt?: number) {
   lastProgressAt = Date.now();
   lastTime = -1;
   try {
-    await engine.load(playableUrl(currentUrl), { live: st.target.kind === 'live', startAt });
+    const bufferSeconds = BUFFER_SECONDS[user.get().data.settings.buffer || 'auto'] || 0;
+    await engine.load(playableUrl(currentUrl), { live: st.target.kind === 'live', startAt, bufferSeconds });
   } catch {
     /* reported through events.error */
   }

@@ -83,11 +83,64 @@ export function decodeBase64Text(s: string): string {
   }
 }
 
+/** All server URLs of a source, main first, without duplicates. */
+export function xtreamServers(config: XtreamSourceConfig): string[] {
+  const out: string[] = [];
+  for (const s of [config.server].concat(config.backupServers || [])) {
+    const n = s && s.trim() ? normalizeServer(s) : '';
+    if (n && out.indexOf(n) < 0) out.push(n);
+  }
+  return out;
+}
+
+function timeLimit<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('No answer after ' + Math.round(ms / 1000) + ' s')), ms);
+    p.then(
+      (v) => (clearTimeout(t), resolve(v)),
+      (e) => (clearTimeout(t), reject(e)),
+    );
+  });
+}
+
+/** Login failed on a server that answered: trying the backup URLs won't help. */
+export class XtreamAuthError extends Error {}
+
 export class XtreamClient {
-  readonly base: string;
+  /** The server in use: the main one, or the first backup that answered. */
+  base: string;
 
   constructor(readonly config: XtreamSourceConfig, private fetcher: Fetcher = (u) => getJson(u)) {
     this.base = normalizeServer(config.server);
+  }
+
+  /** Uses a server found earlier by `connect` (e.g. in another thread). */
+  useServer(base: string | undefined): this {
+    if (base && xtreamServers(this.config).indexOf(base) >= 0) this.base = base;
+    return this;
+  }
+
+  /**
+   * Logs in on the main server, or on the next backup URL when a server is down. A server that
+   * answers "wrong login" stops the search (the others would say the same).
+   */
+  async connect(onTry?: (server: string, i: number, total: number) => void): Promise<XtreamAccount> {
+    const servers = xtreamServers(this.config);
+    const failures: string[] = [];
+    for (let i = 0; i < servers.length; i++) {
+      this.base = servers[i];
+      if (onTry) onTry(servers[i], i, servers.length);
+      try {
+        // A dead server can take 30 s to time out; with backups, move on sooner.
+        return await (servers.length > 1 ? timeLimit(this.authenticate(), 12000) : this.authenticate());
+      } catch (e) {
+        if (e instanceof XtreamAuthError) throw e;
+        failures.push(servers[i] + ': ' + (e instanceof Error ? e.message : String(e)));
+      }
+    }
+    this.base = servers[0];
+    if (servers.length === 1) throw new Error(failures[0] ? failures[0].slice(servers[0].length + 2) : 'Server unreachable');
+    throw new Error('None of the ' + servers.length + ' server URLs answered:\n' + failures.join('\n'));
   }
 
   private api(params: Record<string, string | number> = {}): string {
@@ -99,8 +152,12 @@ export class XtreamClient {
   async authenticate(): Promise<XtreamAccount> {
     const res = await this.fetcher<any>(this.api());
     const ui = res && res.user_info;
-    if (!ui || Number(ui.auth) === 0) throw new Error('Login failed: check the server, username and password');
-    if (ui.status && String(ui.status).toLowerCase() !== 'active') throw new Error(`Account is ${ui.status}`);
+    if (!ui || Number(ui.auth) === 0) {
+      // A JSON answer without user_info is a working server refusing the login.
+      if (res && typeof res === 'object') throw new XtreamAuthError('Login failed: check the username and password');
+      throw new Error('Not an Xtream server');
+    }
+    if (ui.status && String(ui.status).toLowerCase() !== 'active') throw new XtreamAuthError(`Account is ${ui.status}`);
     return {
       status: str(ui.status) || 'Active',
       expiresAt: secToMs(ui.exp_date),

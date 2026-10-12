@@ -5,6 +5,7 @@ import { resetTo } from '@/navigation/router';
 import { recoverInterruptedRebuild, rebuildDatabase } from '@/platform/db';
 import { fileStoreAvailable } from '@/platform/filestore';
 import { initLibrary, libraryState } from '@/state/library';
+import { scheduleUpdateCheck } from '@/ui/update-notice';
 import { activateProfile, loadUser, user } from '@/state/user';
 
 /** Startup progress on the boot screen (public/js/boot.js), to see where an old TV gets stuck. */
@@ -61,6 +62,7 @@ async function start() {
   const splash = document.getElementById('splash');
   if (splash) splash.parentNode!.removeChild(splash);
   if (user.get().activeProfileId) initLibrary();
+  scheduleUpdateCheck();
 }
 
 start().catch((e) => {

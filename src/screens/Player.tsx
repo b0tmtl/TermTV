@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Glyph } from '@/ui/Glyph';
+import { LoadingDots } from '@/ui/LoadingDots';
 import type { Channel } from '@/core/models';
 import { cleanTitle, splitYear } from '@/core/normalize';
 import { formatDuration, formatTime, t } from '@/i18n';
@@ -20,6 +21,16 @@ const HIDE_AFTER = 5000;
 
 export function PlayerScreen() {
   const st = useStore(player, (s) => s);
+  // Once the video plays, repaint the overlay once: TVs can leave stale pieces of what was drawn
+  // over the video plane (the loading indicator) on screen.
+  useEffect(() => {
+    if (st.status !== 'playing') return;
+    const el = document.querySelector('.player-ui') as HTMLElement | null;
+    if (!el) return;
+    el.style.opacity = '0.99';
+    const id = requestAnimationFrame(() => (el.style.opacity = ''));
+    return () => cancelAnimationFrame(id);
+  }, [st.status]);
   const settings = useStore(user, (s) => s.data.settings);
   const [controls, setControls] = useState(true);
   const [panel, setPanel] = useState(false);
@@ -224,7 +235,7 @@ export function PlayerScreen() {
       )}
       {(st.status === 'loading' || st.status === 'buffering') && (
         <div class="status">
-          <span class="spinner" />
+          <LoadingDots />
           {st.reconnecting > 0 && <div style={{ marginTop: 14, fontSize: 22 }}>{t('player.reconnecting', { n: st.reconnecting })}</div>}
         </div>
       )}
@@ -349,3 +360,4 @@ export function PlayerScreen() {
     return false;
   }
 }
+

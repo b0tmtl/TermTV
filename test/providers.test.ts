@@ -131,3 +131,31 @@ describe('Xtream', () => {
     expect(client.movieUrl(lib.movies[0])).toBe('http://h:80/movie/u/p/22.mkv');
   });
 });
+
+describe('Xtream backup URLs', () => {
+  const ok = { user_info: { auth: 1, status: 'Active', exp_date: '1900000000', max_connections: '2', active_cons: '1' } };
+  it('uses the first server that answers', async () => {
+    const tried: string[] = [];
+    const c = new XtreamClient(
+      { type: 'xtream', server: 'http://a.example', username: 'u', password: 'p', backupServers: ['b.example:8080', 'http://c.example'] },
+      async <T,>(url: string) => {
+        tried.push(url.split('/player_api')[0]);
+        if (url.indexOf('b.example') < 0) throw new Error('Network error');
+        return ok as unknown as T;
+      },
+    );
+    const acct = await c.connect();
+    expect(tried).toEqual(['http://a.example', 'http://b.example:8080']);
+    expect(c.base).toBe('http://b.example:8080');
+    expect(acct.expiresAt).toBe(1900000000000);
+    expect(acct.maxConnections).toBe(2);
+  });
+  it('stops at a wrong login and reports when all are down', async () => {
+    const wrong = new XtreamClient({ type: 'xtream', server: 'http://a.example', username: 'u', password: 'x', backupServers: ['http://b.example'] }, async <T,>() => ({ user_info: { auth: 0 } }) as unknown as T);
+    await expect(wrong.connect()).rejects.toThrow(/Login failed/);
+    const down = new XtreamClient({ type: 'xtream', server: 'http://a.example', username: 'u', password: 'p', backupServers: ['http://b.example'] }, async () => {
+      throw new Error('Network error');
+    });
+    await expect(down.connect()).rejects.toThrow(/None of the 2 server URLs answered[\s\S]*a\.example[\s\S]*b\.example/);
+  });
+});

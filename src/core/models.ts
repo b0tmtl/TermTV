@@ -9,6 +9,8 @@ export interface XtreamSourceConfig {
   server: string; // e.g. http://provider.example:8080
   username: string;
   password: string;
+  /** Other URLs of the same provider, tried in order when the main one doesn't answer. */
+  backupServers?: string[];
 }
 
 export interface M3USourceConfig {

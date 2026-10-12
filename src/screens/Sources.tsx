@@ -44,6 +44,7 @@ export function AddSourceScreen({ editId }: { editId?: string }) {
   const [server, setServer] = useState(existing && existing.config.type === 'xtream' ? existing.config.server : '');
   const [username, setUsername] = useState(existing && existing.config.type === 'xtream' ? existing.config.username : '');
   const [password, setPassword] = useState(existing && existing.config.type === 'xtream' ? existing.config.password : '');
+  const [backups, setBackups] = useState(existing && existing.config.type === 'xtream' ? (existing.config.backupServers || []).join(' ') : '');
   const [url, setUrl] = useState(existing && existing.config.type === 'm3u' ? existing.config.url : '');
   const [epgUrl, setEpgUrl] = useState(existing && existing.config.type === 'm3u' ? existing.config.epgUrl || '' : '');
   const [busy, setBusy] = useState(false);
@@ -60,7 +61,11 @@ export function AddSourceScreen({ editId }: { editId?: string }) {
     let config: SourceConfig;
     if (mode === 'xtream') {
       if (!server || !username || !password) return setError(t('sources.missing'));
-      config = { type: 'xtream', server: normalizeServer(server), username, password };
+      const backupServers = backups
+        .split(/[\s,;]+/)
+        .filter(Boolean)
+        .map(normalizeServer);
+      config = { type: 'xtream', server: normalizeServer(server), username, password, backupServers: backupServers.length ? backupServers : undefined };
     } else {
       if (!/^https?:\/\//i.test(url)) return setError(t('sources.badUrl'));
       // A pasted Xtream "get.php" link works better through the Xtream API.
@@ -110,6 +115,15 @@ export function AddSourceScreen({ editId }: { editId?: string }) {
             <Field label={t('sources.server')} value={server} placeholder="http://provider.example:8080" onEnter={edit(t('sources.server'), server, setServer)} />
             <Field label={t('sources.username')} value={username} onEnter={edit(t('sources.username'), username, setUsername)} />
             <Field label={t('sources.password')} value={password ? '•'.repeat(password.length) : ''} onEnter={edit(t('sources.password'), password, setPassword, true)} />
+            <Field
+              label={t('sources.backupServers')}
+              value={backups}
+              placeholder={t('sources.backupServersPlaceholder')}
+              onEnter={async () => {
+                const v = await promptText(t('sources.backupServers'), backups, { hint: t('sources.backupServersHint') });
+                if (v !== null) setBackups(v.trim());
+              }}
+            />
           </>
         ) : (
           <>
@@ -128,7 +142,7 @@ export function AddSourceScreen({ editId }: { editId?: string }) {
         </span>
       </div>
       {busy && stage && <div class="status-line">{stageLabel(stage.stage, stage.loaded, stage.total)}</div>}
-      {error && <div class="bad" style={{ marginTop: 10, fontSize: 24, maxWidth: 1300 }}><Glyph n="cross" gap />{error}</div>}
+      {error && <div class="bad" style={{ marginTop: 10, fontSize: 24, maxWidth: 1300, whiteSpace: 'pre-line' }}><Glyph n="cross" gap />{error}</div>}
       <div class="dim" style={{ marginTop: 30, fontSize: 21, maxWidth: 1300 }}>{t('sources.privacy')}</div>
     </div>
   );
@@ -153,6 +167,8 @@ export function stageLabel(stage: string, loaded?: number, total?: number): stri
   switch (stage) {
     case 'auth':
       return t('progress.auth');
+    case 'auth-backup':
+      return t('progress.authBackup', { n: loaded || 2, total: total || 2 });
     case 'library':
       return t('progress.library');
     case 'download':

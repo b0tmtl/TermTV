@@ -1,6 +1,7 @@
 // Samsung AVPlay engine: hardware decoding of HLS, MPEG-TS, MP4, MKV and DASH on the TV.
 // Docs: https://developer.samsung.com/smarttv/develop/api-references/samsung-product-api-references/avplay-api.html
 
+import { languageName } from '@/core/languages';
 import type { LoadOptions, PlayerEngine, PlayerEvents, Rect, Track } from './types';
 
 declare const webapis: any;
@@ -9,14 +10,24 @@ export function avplayAvailable(): boolean {
   return typeof webapis !== 'undefined' && !!webapis.avplay;
 }
 
-function parseExtra(extra: string): { language: string; label: string } {
-  try {
-    const j = JSON.parse(extra);
-    const lang = String(j.language || j.track_lang || '').trim();
-    return { language: lang, label: String(j.label || lang || '').trim() };
-  } catch {
-    return { language: '', label: '' };
+/**
+ * Track details from AVPlay's `extra_info`. Depending on the firmware it is a JSON string or an
+ * object, and the language key is `language`, `track_lang` or something close.
+ */
+function parseExtra(extra: unknown): { language: string; label: string } {
+  let j: Record<string, unknown> = {};
+  if (extra && typeof extra === 'object') j = extra as Record<string, unknown>;
+  else if (typeof extra === 'string') {
+    try {
+      j = JSON.parse(extra);
+    } catch {
+      const m = /lang\w*"?\s*[:=]\s*"?([A-Za-z]{2,3}(?:[-_][A-Za-z]{2})?)/i.exec(extra);
+      if (m) j = { language: m[1] };
+    }
   }
+  let lang = String(j.language || j.track_lang || j.lang || '').trim();
+  if (!lang) for (const k in j) if (/lang/i.test(k) && j[k]) lang = String(j[k]).trim();
+  return { language: lang, label: String(j.label || j.title || '').trim() };
 }
 
 export class AvPlayEngine implements PlayerEngine {
@@ -62,8 +73,11 @@ export class AvPlayEngine implements PlayerEngine {
           onevent: () => undefined,
         });
         try {
-          this.av.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', opts.live ? 3 : 5);
-          this.av.setBufferingParam('PLAYER_BUFFER_FOR_RESUME', 'PLAYER_BUFFER_SIZE_IN_SECOND', opts.live ? 5 : 10);
+          // Before playing, and after a stall ("resume"). More = fewer stalls on shaky streams, slower start.
+          const play = opts.bufferSeconds || (opts.live ? 3 : 5);
+          const resume = opts.bufferSeconds ? Math.min(30, opts.bufferSeconds * 2) : opts.live ? 5 : 10;
+          this.av.setBufferingParam('PLAYER_BUFFER_FOR_PLAY', 'PLAYER_BUFFER_SIZE_IN_SECOND', play);
+          this.av.setBufferingParam('PLAYER_BUFFER_FOR_RESUME', 'PLAYER_BUFFER_SIZE_IN_SECOND', resume);
         } catch {
           /* older firmware */
         }
@@ -192,13 +206,22 @@ export class AvPlayEngine implements PlayerEngine {
 
   private tracksOf(type: 'AUDIO' | 'TEXT'): Track[] {
     try {
-      const all: Array<{ index: number; type: string; extra_info: string }> = this.av.getTotalTrackInfo();
-      return all
+      const all: Array<{ index: number; type: string; extra_info: unknown }> = this.av.getTotalTrackInfo();
+      const list = all
         .filter((t) => t.type === type)
         .map((t, i) => {
           const x = parseExtra(t.extra_info);
-          return { index: t.index, language: x.language, label: x.label || `${type === 'AUDIO' ? 'Audio' : 'Subtitle'} ${i + 1}` };
+          const name = languageName(x.language);
+          const label = x.label && name && x.label.toLowerCase() !== x.language.toLowerCase() ? name + ' · ' + x.label : x.label || name;
+          return { index: t.index, language: x.language, label: label || (type === 'AUDIO' ? 'Audio ' : 'Subtitle ') + (i + 1) };
         });
+      // Two tracks in the same language: "French", "French 2".
+      const seen: Record<string, number> = {};
+      for (const t of list) {
+        seen[t.label] = (seen[t.label] || 0) + 1;
+        if (seen[t.label] > 1) t.label += ' ' + seen[t.label];
+      }
+      return list;
     } catch {
       return [];
     }

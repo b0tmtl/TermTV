@@ -16,6 +16,10 @@ export interface SubtitleStyle {
   position: 'bottom' | 'raised' | 'top';
 }
 
+export type BufferLevel = 'auto' | 'low' | 'medium' | 'high' | 'max';
+
+export const BUFFER_SECONDS: Record<BufferLevel, number> = { auto: 0, low: 2, medium: 5, high: 10, max: 20 };
+
 export interface ProfileSettings {
   theme: ThemeId;
   playerEngine: PlayerEngine;
@@ -29,6 +33,8 @@ export interface ProfileSettings {
   subtitlesAuto: boolean;
   audioLanguage: string;
   clock24h: boolean;
+  /** Player buffer: how much is loaded before playing (see BUFFER_SECONDS). */
+  buffer: BufferLevel;
 }
 
 export interface FavoriteList {
@@ -101,6 +107,7 @@ export function defaultSettings(): ProfileSettings {
     subtitlesAuto: false,
     audioLanguage: '',
     clock24h: false,
+    buffer: 'auto',
   };
 }
 

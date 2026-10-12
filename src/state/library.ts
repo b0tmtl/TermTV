@@ -9,6 +9,7 @@ import {
 import type { Category, Channel, Episode, Item, MediaKind, Movie, Programme, Series, SeriesDetails, MovieDetails, Source } from '@/core/models';
 import { ALL_KINDS, DocKind, type SearchResult } from '@/core/search/engine';
 import { XtreamClient } from '@/providers/xtream';
+import { parseBytes, unpackLibrary } from '@/workers/cache-codec';
 import type { EpgChannelRef, SearchBuildDocs, SourceEpg, SourceLibrary } from '@/workers/protocol';
 import { cacheState, deleteCache, loadCache, loadSmall, noteStage, saveCache, saveSmall, withTimeout } from './cache';
 import { createStore } from './store';
@@ -132,29 +133,51 @@ export async function initLibrary(): Promise<void> {
       if (lib) {
         libraryState.set({ stage: 'decodeCache' });
         const t0 = Date.now();
-        const res = await libraryWorker().call({ type: 'decode', store: 'library', chunks: lib }, undefined, lib).catch((e) => {
+        const decoded = await decodeOnUiThread<SourceLibrary>('library', lib).catch((e) => {
           cacheState.set((c) => ({ library: { ...c.library, [s.id]: { ok: false, at: Date.now(), error: 'Decode: ' + String(e && e.message) } } }));
           return null;
         });
-        if (res && res.type === 'library' && res.library) {
-          sourceLibs.set(s.id, res.library);
-          const n = res.library.live.length + res.library.movies.length + res.library.series.length;
-          cacheState.set((c) => ({ library: { ...c.library, [s.id]: { ...c.library[s.id], decode: 'unpacked ' + n + ' titles in ' + (Date.now() - t0) + ' ms' } } }));
+        if (decoded) {
+          sourceLibs.set(s.id, decoded.value);
+          const l = decoded.value;
+          const n = l.live.length + l.movies.length + l.series.length;
+          const decode = n + ' titles in ' + (Date.now() - t0) + ' ms (' + decoded.info + ')';
+          cacheState.set((c) => ({ library: { ...c.library, [s.id]: { ...c.library[s.id], decode } } }));
         }
       }
       const epg = await loadCache('epg', s.id);
       if (epg) {
-        const res = await libraryWorker().call({ type: 'decode', store: 'epg', chunks: epg }, undefined, epg).catch(() => null);
-        if (res && res.type === 'epg' && res.epg) sourceEpgs.set(s.id, res.epg);
+        const decoded = await decodeOnUiThread<SourceEpg>('epg', epg).catch(() => null);
+        if (decoded) sourceEpgs.set(s.id, decoded.value);
       }
     }),
   );
   libraryState.set({ stage: undefined });
+  const tc = Date.now();
   combine();
+  const combineMs = Date.now() - tc;
+  for (const s of sources) cacheState.set((c) => (c.library[s.id] ? { library: { ...c.library, [s.id]: { ...c.library[s.id], decode: (c.library[s.id].decode || '') + ' · ready ' + combineMs + ' ms' } } } : {}));
   libraryState.set((s) => ({ epgVersion: s.epgVersion + 1 }));
   const stale = sources.filter((s) => !sourceLibs.has(s.id) || user.get().app.refreshOnLaunch);
   if (stale.length) refreshSources(stale);
   else if (!byKey.size) libraryState.set({ status: 'empty' });
+}
+
+/**
+ * Cache bytes -> library: the worker decompresses (bytes come back without a copy), this thread
+ * parses. Receiving already-parsed objects from the worker took ~5x longer than JSON.parse here.
+ */
+async function decodeOnUiThread<T>(store: 'library' | 'epg', chunks: ArrayBuffer[]): Promise<{ value: T; info: string }> {
+  const res = await libraryWorker().call({ type: 'gunzip', chunks }, undefined, chunks);
+  if (res.type !== 'raw') throw new Error('No data');
+  // Let the screen draw once before the parse (the TV is busy for a moment).
+  await new Promise((r) => setTimeout(r, 0));
+  let t = Date.now();
+  const parsed = parseBytes<Record<string, unknown>>(res.bytes);
+  const parseMs = Date.now() - t;
+  t = Date.now();
+  const value = (store === 'library' ? unpackLibrary(parsed) : parsed) as T;
+  return { value, info: 'gunzip ' + res.ms + ' · parse ' + parseMs + ' · unpack ' + (Date.now() - t) + ' ms' };
 }
 
 /** Has the worker compress the last refresh (or `value`), then stores it (in the background). */
@@ -522,11 +545,13 @@ export function xtreamClient(sourceId: string): XtreamClient | null {
   const src = user.get().sources.find((s) => s.id === sourceId);
   if (!src || src.config.type !== 'xtream') return null;
   let c = clients.get(sourceId);
+  const lib = sourceLibs.get(sourceId);
   if (!c || c.config !== src.config) {
     c = new XtreamClient(src.config);
     clients.set(sourceId, c);
   }
-  return c;
+  // Play from the server that answered at the last update (a backup URL when the main one is down).
+  return c.useServer(lib && lib.server);
 }
 
 export function streamUrl(item: Channel | Movie, liveFormat: 'ts' | 'm3u8' = 'ts'): string {

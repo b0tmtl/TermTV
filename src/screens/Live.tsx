@@ -16,6 +16,7 @@ import { Img, Prompt } from '@/ui/Cards';
 import { showMenu, type MenuOption } from '@/ui/Dialog';
 import { askPin, favoriteToggle, itemMenu, unlockIfNeeded } from '@/ui/actions';
 import { VGrid } from '@/ui/VGrid';
+import { LoadingDots } from '@/ui/LoadingDots';
 import { toast } from '@/ui/ui-state';
 import type { Programme } from '@/core/models';
 
@@ -280,7 +281,7 @@ export function LiveScreen({ categoryId, channelKey }: { categoryId?: string; ch
         <div ref={hole} class="preview-hole" style={{ left: 40, top: 34, width, height: Math.round((width * 9) / 16), boxShadow: playingKey ? undefined : 'none', background: playingKey ? 'transparent' : 'var(--panel)' }}>
           {playingKey && (playStatus === 'loading' || playStatus === 'buffering') && (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <span class="spinner" />
+              <LoadingDots />
             </div>
           )}
           {playingKey && playStatus === 'error' && (

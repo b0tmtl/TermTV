@@ -5,7 +5,7 @@ import { Gunzip } from 'fflate';
 import { dropHiddenCategories } from '@/core/categories';
 import { normalizeText } from '@/core/normalize';
 import type { Programme, Source } from '@/core/models';
-import { decode, encode, packLibrary, unpackLibrary } from './cache-codec';
+import { decode, decodeTimes, encode, gunzipBytes, packLibrary, unpackLibrary } from './cache-codec';
 import { setUrlRewriter, streamBytes } from '@/platform/http';
 import { M3UCollector, M3UParser } from '@/providers/m3u';
 import { XmltvParser } from '@/providers/xmltv';
@@ -49,9 +49,14 @@ function encodeForCache(store: 'library' | 'epg', value: unknown): ArrayBuffer[]
   return encode(store === 'library' ? packLibrary(value as SourceLibrary) : value).map((c) => c.buffer as ArrayBuffer);
 }
 
+let lastDecodeInfo = '';
+
 function decodeFromCache(store: 'library' | 'epg', chunks: ArrayBuffer[]): unknown {
   const value = decode<unknown>(chunks.map((b) => new Uint8Array(b)));
-  return store === 'library' ? unpackLibrary(value as Record<string, unknown>) : value;
+  const t = Date.now();
+  const out = store === 'library' ? unpackLibrary(value as Record<string, unknown>) : value;
+  lastDecodeInfo = 'gunzip ' + decodeTimes.gunzip + ' · text ' + decodeTimes.text + ' · parse ' + decodeTimes.parse + ' · unpack ' + (Date.now() - t) + ' ms';
+  return out;
 }
 
 ctx.onmessage = (e: MessageEvent) => {
@@ -63,8 +68,17 @@ async function handle(req: LibraryRequest) {
   switch (req.type) {
     case 'decode': {
       const value = decodeFromCache(req.store, req.chunks);
-      if (req.store === 'library') post({ type: 'library', id: req.id, library: value as SourceLibrary });
+      if (req.store === 'library') post({ type: 'library', id: req.id, library: value as SourceLibrary, info: lastDecodeInfo, sentAt: Date.now() });
       else post({ type: 'epg', id: req.id, epg: value as SourceEpg });
+      return;
+    }
+    case 'gunzip': {
+      // Only decompress: handing parsed objects to the UI thread costs ~5x more than parsing the
+      // JSON there, while these bytes move for free (transferred, not copied).
+      const t = Date.now();
+      const raw = gunzipBytes(req.chunks.map((b) => new Uint8Array(b)));
+      const bytes = (raw.byteOffset === 0 && raw.byteLength === raw.buffer.byteLength ? raw.buffer : raw.slice().buffer) as ArrayBuffer;
+      post({ type: 'raw', id: req.id, bytes, ms: Date.now() - t }, [bytes]);
       return;
     }
     case 'encode': {
@@ -99,10 +113,12 @@ async function refresh(source: Source, id: number): Promise<SourceLibrary> {
   if (cfg.type === 'xtream') {
     const client = new XtreamClient(cfg);
     post({ type: 'progress', id, stage: 'auth' });
-    const account = await client.authenticate();
+    const account = await client.connect((_server, i, total) => {
+      if (i > 0) post({ type: 'progress', id, stage: 'auth-backup', loaded: i, total: total - 1 });
+    });
     post({ type: 'progress', id, stage: 'library' });
     const lib = await client.loadLibrary(source.id);
-    return { sourceId: source.id, updatedAt: Date.now(), ...lib, epgUrls: [client.xmltvUrl()], account };
+    return { sourceId: source.id, updatedAt: Date.now(), ...lib, epgUrls: [client.xmltvUrl()], account, server: client.base };
   }
   const collector = new M3UCollector(source.id);
   const parser = new M3UParser((entry) => collector.add(entry));

@@ -2,16 +2,18 @@ import type { ComponentChildren } from 'preact';
 import { Glyph } from '@/ui/Glyph';
 import { useState } from 'preact/hooks';
 import type { Source } from '@/core/models';
-import { currentLanguage, formatDate, languages, t } from '@/i18n';
+import { currentLanguage, formatDate, formatLongDate, languages, t } from '@/i18n';
 import { focusable } from '@/navigation/focus';
 import { navigate, resetTo, updateRoute } from '@/navigation/router';
 import { BACKUP_NAME, openTextFile, saveTextFile } from '@/platform/files';
 import { deviceInfo } from '@/platform/tv';
 import { counts, forgetSource, libraryState, refreshEpg, refreshSource, refreshSources, sourceLibrary, sourcesChanged } from '@/state/library';
 import { cacheState, testStorage } from '@/state/cache';
+import { checkForUpdate, updateState } from '@/state/updates';
+import { showReleaseNotes } from '@/ui/update-notice';
 import { useStore } from '@/state/store';
 import {
-  exportBackup, importBackup, saveSources, updateApp, updateCategoryPrefs, updateSettings, user, type ProfileSettings, type SubtitleStyle, type ThemeId,
+  exportBackup, importBackup, saveSources, updateApp, updateCategoryPrefs, updateSettings, user, type BufferLevel, type ProfileSettings, type SubtitleStyle, type ThemeId,
 } from '@/state/user';
 import { Prompt } from '@/ui/Cards';
 import { alertDialog, confirmDialog, promptPin, showMenu } from '@/ui/Dialog';
@@ -65,12 +67,13 @@ export function SettingsScreen({ section }: { section?: string }) {
   );
 }
 
-function Setting({ label, desc, value, onEnter }: { label: string; desc?: string; value?: ComponentChildren; onEnter?: () => void }) {
+function Setting({ label, desc, extra, value, onEnter }: { label: string; desc?: string; extra?: ComponentChildren; value?: ComponentChildren; onEnter?: () => void }) {
   return (
     <div class="setting" {...focusable({ onEnter })}>
       <span class="l">
         {label}
         {desc && <span class="d">{desc}</span>}
+        {extra}
       </span>
       {value !== undefined && <span class="v">{value}</span>}
     </div>
@@ -91,6 +94,7 @@ function choose<T extends string | number>(title: string, options: Array<{ value
 // ---- Sources -----------------------------------------------------------------------------------
 
 function SourcesPane() {
+  const app = useStore(user, (s) => s.app);
   const sources = useStore(user, (s) => s.sources);
   const refreshing = useStore(libraryState, (s) => s.refreshing);
   const errors = useStore(libraryState, (s) => s.errors);
@@ -146,10 +150,25 @@ function SourcesPane() {
         const acct = lib && lib.account;
         let desc = src.config.type === 'xtream' ? `Xtream · ${src.config.server}` : `M3U · ${src.config.url}`;
         if (lib) desc += ` · ${t('sources.items', { live: lib.live.length, movies: lib.movies.length, series: lib.series.length })}`;
-        if (acct && acct.expiresAt) desc += ` · ${t('sources.expires', { date: formatDate(acct.expiresAt) })}`;
+        if (lib && lib.server && src.config.type === 'xtream' && lib.server !== src.config.server) desc += ' · ' + t('sources.usingBackup', { server: lib.server });
+        let account: ComponentChildren = null;
+        if (acct) {
+          const days = acct.expiresAt ? Math.ceil((acct.expiresAt - Date.now()) / 86400000) : 0;
+          const parts = [
+            acct.expiresAt ? t('sources.expiresOn', { date: formatLongDate(acct.expiresAt), count: Math.max(0, days) }) : t('sources.noExpiry'),
+          ];
+          if (acct.maxConnections) parts.push(t('sources.connections', { active: acct.activeConnections || 0, max: acct.maxConnections }));
+          if (acct.isTrial) parts.push(t('sources.trial'));
+          account = (
+            <span class={'d' + (acct.expiresAt && days <= 7 ? ' bad' : '')} style={{ color: acct.expiresAt && days <= 7 ? undefined : 'var(--text)' }}>
+              {t('sources.subscription')}: {parts.join(' · ')}
+            </span>
+          );
+        }
         return (
           <Setting
             key={src.id}
+            extra={!r && !err ? account : null}
             label={src.enabled ? src.name : `${src.name} (${t('sources.disabled')})`}
             desc={r ? stageLabel(r.stage, r.loaded, r.total) : err ? t('sources.errorPrefix', { error: err }) : desc}
             value={r ? <span class="spinner" style={{ width: 30, height: 30 }} /> : lib ? t('sources.updated', { date: formatDate(lib.updatedAt) }) : ''}
@@ -172,13 +191,13 @@ function SourcesPane() {
       <Setting
         label={t('settings.refreshOnLaunch')}
         desc={t('settings.refreshOnLaunchDesc')}
-        value={<Toggle on={user.get().app.refreshOnLaunch} />}
+        value={<Toggle on={app.refreshOnLaunch} />}
         onEnter={() => updateApp({ refreshOnLaunch: !user.get().app.refreshOnLaunch })}
       />
       <Setting
         label={t('settings.skipHidden')}
         desc={t('settings.skipHiddenDesc')}
-        value={<Toggle on={user.get().app.skipHidden} />}
+        value={<Toggle on={app.skipHidden} />}
         onEnter={() => {
           const on = !user.get().app.skipHidden;
           updateApp({ skipHidden: on });
@@ -239,6 +258,14 @@ function AppearancePane() {
 
 // ---- Player ------------------------------------------------------------------------------------
 
+const BUFFER_LABELS: Record<BufferLevel, string> = {
+  auto: 'settings.buffer_auto',
+  low: 'settings.buffer_low',
+  medium: 'settings.buffer_medium',
+  high: 'settings.buffer_high',
+  max: 'settings.buffer_max',
+};
+
 function PlayerPane() {
   const s = useStore(user, (x) => x.data.settings);
   return (
@@ -254,6 +281,19 @@ function PlayerPane() {
         desc={t('settings.liveFormatDesc')}
         value={s.liveFormat === 'ts' ? 'MPEG-TS (.ts)' : 'HLS (.m3u8)'}
         onEnter={() => updateSettings({ liveFormat: s.liveFormat === 'ts' ? 'm3u8' : 'ts' })}
+      />
+      <Setting
+        label={t('settings.buffer')}
+        desc={t('settings.bufferDesc')}
+        value={t(BUFFER_LABELS[s.buffer || 'auto'])}
+        onEnter={() =>
+          choose(
+            t('settings.buffer'),
+            (['auto', 'low', 'medium', 'high', 'max'] as BufferLevel[]).map((v) => ({ value: v, label: t(BUFFER_LABELS[v]) })),
+            s.buffer || 'auto',
+            (v) => updateSettings({ buffer: v }),
+          )
+        }
       />
       <Setting label={t('settings.autoplayNext')} value={<Toggle on={s.autoplayNext} />} onEnter={() => updateSettings({ autoplayNext: !s.autoplayNext })} />
       <Setting
@@ -429,6 +469,35 @@ function LanguagePane() {
   );
 }
 
+function UpdateStatus() {
+  const u = useStore(updateState, (s) => s);
+  const text = u.checking
+    ? t('updates.checking')
+    : u.error
+      ? t('updates.failed', { error: u.error })
+      : u.available
+        ? t('updates.available', { version: u.latest || '' })
+        : u.latest
+          ? t('updates.upToDate')
+          : t('updates.notChecked');
+  return (
+    <div style={{ marginTop: 10 }}>
+      <span class={u.available ? 'accent' : u.error ? 'bad' : 'dim'}>{text}</span>
+      <div style={{ marginTop: 8 }}>
+        <span class="btn" {...focusable({ onEnter: () => checkForUpdate(true).then((s) => (s.available ? showReleaseNotes() : undefined)) })}>
+          <Icon name="refresh" />
+          {t('updates.check')}
+        </span>
+        {u.latest && (
+          <span class="btn" {...focusable({ onEnter: () => showReleaseNotes() })}>
+            {t('updates.whatsNew')}
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function CacheStatus() {
   const cache = useStore(cacheState, (s) => s.library);
   const sources = useStore(user, (s) => s.sources);
@@ -484,6 +553,7 @@ function AboutPane() {
       <div style={{ marginTop: 20 }} class="dim">
         {t('about.device')}: {d.model} {d.tizenVersion ? `· Tizen ${d.tizenVersion}` : ''}
       </div>
+      <UpdateStatus />
       <CacheStatus />
       <div class="dim" style={{ fontSize: 20 }}>{t('about.disclaimer')}</div>
       <div style={{ marginTop: 20 }}>

@@ -15,6 +15,8 @@ export interface SourceLibrary {
   episodes?: Record<string, Episode[]>;
   epgUrls: string[];
   account?: XtreamAccount;
+  /** Xtream: the server URL that answered (the main one or a backup). */
+  server?: string;
 }
 
 export interface SourceEpg {
@@ -37,14 +39,16 @@ export interface EpgChannelRef {
 export type LibraryRequest =
   | { type: 'refresh'; id: number; source: Source; proxy?: string; skip?: Partial<Record<MediaKind, string[]>> }
   | { type: 'decode'; id: number; store: 'library' | 'epg'; chunks: ArrayBuffer[] }
+  | { type: 'gunzip'; id: number; chunks: ArrayBuffer[] }
   | { type: 'encode'; id: number; store: 'library' | 'epg'; key: string; value?: unknown }
   | { type: 'epg'; id: number; source: Source; urls: string[]; channels: EpgChannelRef[]; hoursBack: number; hoursAhead: number; proxy?: string };
 
 export type LibraryResponse =
   | { type: 'progress'; id: number; stage: string; loaded?: number; total?: number }
-  | { type: 'library'; id: number; library: SourceLibrary | null }
+  | { type: 'library'; id: number; library: SourceLibrary | null; info?: string; sentAt?: number }
   | { type: 'epg'; id: number; epg: SourceEpg | null }
   | { type: 'encoded'; id: number; chunks: ArrayBuffer[] }
+  | { type: 'raw'; id: number; bytes: ArrayBuffer; ms: number }
   | { type: 'ok'; id: number }
   | { type: 'error'; id: number; message: string };
 

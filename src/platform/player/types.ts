@@ -25,6 +25,8 @@ export interface LoadOptions {
   live: boolean;
   /** Start position in seconds (VOD resume). */
   startAt?: number;
+  /** Seconds buffered before playback starts; 0 or absent = the engine's default. */
+  bufferSeconds?: number;
 }
 
 export interface PlayerEngine {

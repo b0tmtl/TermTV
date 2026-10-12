@@ -2,6 +2,7 @@
 // The fallback for TVs where AVPlay stutters on some streams, and the engine used in a desktop
 // browser during development. The libraries are loaded on demand.
 
+import { languageName } from '@/core/languages';
 import type { LoadOptions, PlayerEngine, PlayerEvents, Rect, Track } from './types';
 
 const loaded: Record<string, Promise<void>> = {};
@@ -68,7 +69,8 @@ export class Html5Engine implements PlayerEngine {
     if (kind === 'hls' && !v.canPlayType('application/vnd.apple.mpegurl')) {
       await loadScript('vendor/hls.min.js');
       if (w.Hls && w.Hls.isSupported()) {
-        this.hls = new w.Hls({ enableWorker: true, lowLatencyMode: false, backBufferLength: 30 });
+        const ahead = opts.bufferSeconds ? Math.max(10, opts.bufferSeconds * 3) : 30;
+        this.hls = new w.Hls({ enableWorker: true, lowLatencyMode: false, backBufferLength: 30, maxBufferLength: ahead });
         this.hls.on(w.Hls.Events.ERROR, (_e: unknown, data: { fatal: boolean; details: string }) => {
           if (data.fatal) this.ev.error(data.details);
         });
@@ -80,7 +82,7 @@ export class Html5Engine implements PlayerEngine {
     } else if (kind === 'ts') {
       await loadScript('vendor/mpegts.js');
       if (w.mpegts && w.mpegts.isSupported()) {
-        this.ts = w.mpegts.createPlayer({ type: 'mpegts', isLive: opts.live, url }, { enableWorker: true, liveBufferLatencyChasing: opts.live, lazyLoad: false });
+        this.ts = w.mpegts.createPlayer({ type: 'mpegts', isLive: opts.live, url }, { enableWorker: true, liveBufferLatencyChasing: opts.live && (opts.bufferSeconds || 0) <= 5, lazyLoad: false });
         this.ts.on(w.mpegts.Events.ERROR, (type: string, detail: string) => this.ev.error(`${type}: ${detail}`));
         this.ts.attachMediaElement(v);
         this.ts.load();
@@ -179,23 +181,23 @@ export class Html5Engine implements PlayerEngine {
 
   audioTracks(): Track[] {
     if (this.hls && this.hls.audioTracks) {
-      return this.hls.audioTracks.map((t: { lang?: string; name?: string }, i: number) => ({ index: i, language: t.lang || '', label: t.name || t.lang || `Audio ${i + 1}` }));
+      return this.hls.audioTracks.map((t: { lang?: string; name?: string }, i: number) => ({ index: i, language: t.lang || '', label: t.name || languageName(t.lang || '') || `Audio ${i + 1}` }));
     }
     const at = (this.video as any).audioTracks;
     if (!at) return [];
     const out: Track[] = [];
-    for (let i = 0; i < at.length; i++) out.push({ index: i, language: at[i].language || '', label: at[i].label || at[i].language || `Audio ${i + 1}` });
+    for (let i = 0; i < at.length; i++) out.push({ index: i, language: at[i].language || '', label: at[i].label || languageName(at[i].language || '') || `Audio ${i + 1}` });
     return out;
   }
 
   textTracks(): Track[] {
     if (this.hls && this.hls.subtitleTracks && this.hls.subtitleTracks.length) {
-      return this.hls.subtitleTracks.map((t: { lang?: string; name?: string }, i: number) => ({ index: i, language: t.lang || '', label: t.name || t.lang || `Subtitle ${i + 1}` }));
+      return this.hls.subtitleTracks.map((t: { lang?: string; name?: string }, i: number) => ({ index: i, language: t.lang || '', label: t.name || languageName(t.lang || '') || `Subtitle ${i + 1}` }));
     }
     const tt = this.video.textTracks;
     const out: Track[] = [];
     for (let i = 0; i < tt.length; i++) {
-      if (tt[i].kind === 'subtitles' || tt[i].kind === 'captions') out.push({ index: i, language: tt[i].language || '', label: tt[i].label || tt[i].language || `Subtitle ${i + 1}` });
+      if (tt[i].kind === 'subtitles' || tt[i].kind === 'captions') out.push({ index: i, language: tt[i].language || '', label: tt[i].label || languageName(tt[i].language || '') || `Subtitle ${i + 1}` });
     }
     return out;
   }

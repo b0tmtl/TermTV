@@ -76,63 +76,121 @@ const fileName = (store: CacheStore, key: string) => `${store}-${key}.bin`;
 /** Small IndexedDB record describing a file cache (for Settings > About). */
 const fileMetaKey = (store: CacheStore, key: string) => `cachefile:${store}:${key}`;
 
+/** Free space in browser storage, or undefined when the TV doesn't say (quickly). */
+function idbRoom(): Promise<number | undefined> {
+  return new Promise((resolve) => {
+    const q = (navigator as any).webkitTemporaryStorage;
+    if (!q || !q.queryUsageAndQuota) return resolve(undefined);
+    const t = setTimeout(() => resolve(undefined), 2000);
+    try {
+      q.queryUsageAndQuota(
+        (used: number, quota: number) => (clearTimeout(t), resolve(quota - used)),
+        () => (clearTimeout(t), resolve(undefined)),
+      );
+    } catch {
+      clearTimeout(t);
+      resolve(undefined);
+    }
+  });
+}
+
+/** Room always left in browser storage for settings, favorites and history. */
+const IDB_RESERVE = 2 * 1048576;
+
+/**
+ * Browser storage when the cache fits (it reads natively and fast), otherwise a file in the app's
+ * folder (no size limit, but the TV's file API reads at about 1 MB/s).
+ */
 export async function saveCache(store: CacheStore, key: string, chunks: ArrayBuffer[]): Promise<void> {
   if (!chunks.length) return;
   let bytes = 0;
   for (const c of chunks) bytes += c.byteLength;
-  let fileError = '';
+  const errors: string[] = [];
+  let preferIdb = true;
   if (fileStoreAvailable()) {
-    const name = fileName(store, key);
+    // Without our own old copy: it is replaced.
+    const old = await dbGet<CacheMeta>(store, metaKey(key)).catch(() => undefined);
+    const room = await idbRoom();
+    preferIdb = room !== undefined && room + (old ? old.bytes : 0) - bytes > IDB_RESERVE;
+  }
+  const order = preferIdb ? ['idb', 'file'] : ['file', 'idb'];
+  for (const where of order) {
+    if (where === 'file' && !fileStoreAvailable()) continue;
     try {
-      // Free what earlier versions left in IndexedDB first: it shares the quota with settings.
-      noteStage(store, key, 'cleaning up old data');
-      await withTimeout(deleteIdbCache(store, key), 30000, 'Cleaning up').catch((e) => console.warn(e));
-      noteStage(store, key, 'writing file (' + (bytes / 1048576).toFixed(1) + ' MB)');
-      await withTimeout(writeFile(name, chunks), 60000, 'Writing file');
-      noteStage(store, key, 'checking file');
-      const back = await withTimeout(readFile(name), 60000, 'Reading file back');
-      if (!back || back.byteLength !== bytes) throw new Error('File read back ' + (back ? back.byteLength : 0) + ' of ' + bytes + ' bytes');
-      await dbPut('kv', fileMetaKey(store, key), { bytes, savedAt: Date.now() }).catch(() => undefined);
-      note(store, key, { ok: true, bytes, at: Date.now(), error: undefined, loaded: false, where: 'file' });
+      if (where === 'idb') {
+        await saveIdb(store, key, chunks, bytes);
+        if (fileStoreAvailable()) await withTimeout(deleteFile(fileName(store, key)), 10000, 'Deleting file').catch(() => undefined);
+      } else {
+        await saveFile(store, key, chunks, bytes);
+      }
+      note(store, key, { ok: true, bytes, at: Date.now(), error: undefined, loaded: false, where: where as 'idb' | 'file' });
       return;
     } catch (e) {
-      fileError = e instanceof Error ? e.message : String(e);
-      console.warn('file cache failed, trying IndexedDB', fileError);
-      await withTimeout(deleteFile(name), 10000, 'Deleting file').catch(() => undefined);
+      const msg = e instanceof Error ? e.message : String(e);
+      errors.push((where === 'idb' ? 'Browser storage: ' : 'File: ') + msg);
+      console.warn('cache save failed in', where, msg);
+      if (where === 'idb') await withTimeout(deleteIdbCache(store, key), 30000, 'Cleaning up').catch(() => undefined);
+      else await withTimeout(deleteFile(fileName(store, key)), 10000, 'Deleting file').catch(() => undefined);
     }
   }
-  noteStage(store, key, 'saving to browser storage');
+  console.warn('cache save failed', store, key, errors.join(' · '));
+  note(store, key, { ok: false, at: Date.now(), error: errors.join(' · ') });
+}
+
+async function saveFile(store: CacheStore, key: string, chunks: ArrayBuffer[], bytes: number): Promise<void> {
+  const name = fileName(store, key);
+  // Free what earlier versions left in IndexedDB first: it shares the quota with settings.
+  noteStage(store, key, 'cleaning up old data');
+  await withTimeout(deleteIdbCache(store, key), 30000, 'Cleaning up').catch((e) => console.warn(e));
+  noteStage(store, key, 'writing file (' + (bytes / 1048576).toFixed(1) + ' MB)');
+  await withTimeout(writeFile(name, chunks), 60000, 'Writing file');
+  noteStage(store, key, 'checking file');
+  const back = await withTimeout(readFile(name), 60000, 'Reading file back');
+  if (!back || back.byteLength !== bytes) throw new Error('File read back ' + (back ? back.byteLength : 0) + ' of ' + bytes + ' bytes');
+  await dbPut('kv', fileMetaKey(store, key), { bytes, savedAt: Date.now() }).catch(() => undefined);
+}
+
+async function saveIdb(store: CacheStore, key: string, chunks: ArrayBuffer[], bytes: number): Promise<void> {
+  noteStage(store, key, 'saving to browser storage (' + (bytes / 1048576).toFixed(1) + ' MB)');
+  const old = await dbGet<CacheMeta>(store, metaKey(key)).catch(() => undefined);
+  await dbDelete(store, metaKey(key));
+  let asText = false;
   try {
-    const old = await dbGet<CacheMeta>(store, metaKey(key)).catch(() => undefined);
-    await dbDelete(store, metaKey(key));
-    let asText = false;
-    try {
-      await dbPut(store, chunkKey(key, 0), chunks[0]);
-    } catch (e) {
-      console.warn('binary cache refused, saving as text', e);
-      asText = true;
-    }
-    for (let i = asText ? 0 : 1; i < chunks.length; i++) await dbPut(store, chunkKey(key, i), asText ? toStr(chunks[i]) : chunks[i]);
-    const meta: CacheMeta = { format: FORMAT, chunks: chunks.length, bytes, savedAt: Date.now(), text: asText || undefined };
-    await dbPut(store, metaKey(key), meta);
-    // Read it back: some TVs report success and keep nothing.
-    const check = await dbGet<CacheMeta>(store, metaKey(key));
-    if (!check || check.chunks !== chunks.length) throw new Error('Saved data could not be read back');
-    if (old) for (let i = chunks.length; i < old.chunks; i++) await dbDelete(store, chunkKey(key, i)).catch(() => undefined);
-    // The one-record format from before 0.1.7.
-    await dbDelete(store, key).catch(() => undefined);
-    note(store, key, { ok: true, bytes, at: Date.now(), error: undefined, loaded: false, where: 'idb' });
+    await dbPut(store, chunkKey(key, 0), chunks[0]);
   } catch (e) {
-    // Don't leave half a cache behind: it would fill the quota that settings need.
-    await withTimeout(deleteIdbCache(store, key), 30000, 'Cleaning up').catch(() => undefined);
-    const msg = (fileError ? `File: ${fileError} · Browser storage: ` : '') + (e instanceof Error ? e.message : String(e));
-    console.warn('cache save failed', store, key, msg);
-    note(store, key, { ok: false, at: Date.now(), error: msg });
+    if (/Quota/i.test(String(e && (e as Error).message))) throw e;
+    console.warn('binary cache refused, saving as text', e);
+    asText = true;
   }
+  for (let i = asText ? 0 : 1; i < chunks.length; i++) await dbPut(store, chunkKey(key, i), asText ? toStr(chunks[i]) : chunks[i]);
+  const meta: CacheMeta = { format: FORMAT, chunks: chunks.length, bytes, savedAt: Date.now(), text: asText || undefined };
+  await dbPut(store, metaKey(key), meta);
+  // Read it back: some TVs report success and keep nothing.
+  const check = await dbGet<CacheMeta>(store, metaKey(key));
+  if (!check || check.chunks !== chunks.length) throw new Error('Saved data could not be read back');
+  if (old) for (let i = chunks.length; i < old.chunks; i++) await dbDelete(store, chunkKey(key, i)).catch(() => undefined);
+  // The one-record format from before 0.1.7.
+  await dbDelete(store, key).catch(() => undefined);
 }
 
 /** The stored chunks, or undefined when there is no complete cache. */
 export async function loadCache(store: CacheStore, key: string): Promise<ArrayBuffer[] | undefined> {
+  const t0 = Date.now();
+  try {
+    const meta = await dbGet<CacheMeta>(store, metaKey(key));
+    if (meta && meta.format === FORMAT) {
+      const chunks: ArrayBuffer[] = [];
+      for (let i = 0; i < meta.chunks; i++) {
+        const buf = await dbGet<ArrayBuffer | string>(store, chunkKey(key, i));
+        if (!buf) throw new Error('Saved data is incomplete');
+        chunks.push(typeof buf === 'string' ? fromStr(buf) : buf);
+      }
+      note(store, key, { ok: true, bytes: meta.bytes, at: meta.savedAt, loaded: true, where: 'idb', read: 'read in ' + (Date.now() - t0) + ' ms' });
+      return chunks;
+    }
+  } catch (e) {
+    console.warn('cache read from browser storage failed', e);
+  }
   if (fileStoreAvailable()) {
     try {
       const buf = await withTimeout(readFile(fileName(store, key)), 60000, 'Reading cache file');
@@ -145,21 +203,7 @@ export async function loadCache(store: CacheStore, key: string): Promise<ArrayBu
       note(store, key, { ok: false, at: Date.now(), error: e instanceof Error ? e.message : String(e) });
     }
   }
-  try {
-    const meta = await dbGet<CacheMeta>(store, metaKey(key));
-    if (!meta || meta.format !== FORMAT) return undefined;
-    const chunks: ArrayBuffer[] = [];
-    for (let i = 0; i < meta.chunks; i++) {
-      const buf = await dbGet<ArrayBuffer | string>(store, chunkKey(key, i));
-      if (!buf) return undefined;
-      chunks.push(typeof buf === 'string' ? fromStr(buf) : buf);
-    }
-    note(store, key, { ok: true, bytes: meta.bytes, at: meta.savedAt, loaded: true, where: 'idb' });
-    return chunks;
-  } catch (e) {
-    note(store, key, { ok: false, at: Date.now(), error: e instanceof Error ? e.message : String(e) });
-    return undefined;
-  }
+  return undefined;
 }
 
 export async function deleteCache(store: CacheStore, key: string): Promise<void> {

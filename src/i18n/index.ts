@@ -81,6 +81,15 @@ export function formatTime(ms: number, h24: boolean): string {
   return `${h % 12 || 12}:${mm} ${h < 12 ? t('time.am') : t('time.pm')}`;
 }
 
+/** "March 3, 2027": dates where the year matters (subscription expiry). */
+export function formatLongDate(ms: number): string {
+  try {
+    return new Date(ms).toLocaleDateString(lang, { year: 'numeric', month: 'long', day: 'numeric' });
+  } catch {
+    return new Date(ms).toDateString();
+  }
+}
+
 export function formatDate(ms: number): string {
   try {
     return new Date(ms).toLocaleDateString(lang, { weekday: 'short', month: 'short', day: 'numeric' });

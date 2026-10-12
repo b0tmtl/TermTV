@@ -99,7 +99,19 @@
     "expires": "expires {date}",
     "updated": "updated {date}",
     "disabled": "disabled",
-    "errorPrefix": "Error: {error}"
+    "errorPrefix": "Error: {error}",
+    "backupServers": "Backup URLs",
+    "backupServersPlaceholder": "Optional: other URLs of the same provider",
+    "backupServersHint": "Separate URLs with a space. When the main server is down, TermTV tries these in order.",
+    "subscription": "Subscription",
+    "expiresOn": {
+      "one": "expires {date} (in {count} day)",
+      "other": "expires {date} (in {count} days)"
+    },
+    "noExpiry": "no expiry date",
+    "connections": "{active}/{max} connections in use",
+    "trial": "trial",
+    "usingBackup": "using backup URL {server}"
   },
   "progress": {
     "start": "Starting…",
@@ -108,7 +120,8 @@
     "downloadStart": "Downloading the playlist…",
     "download": "Downloading the playlist… {done}{total} MB",
     "epgStart": "Downloading the guide…",
-    "epg": "Downloading the guide… {done} MB"
+    "epg": "Downloading the guide… {done} MB",
+    "authBackup": "Main server not answering, trying backup URL {n} of {total}…"
   },
   "home": {
     "loading": "Loading your library…",
@@ -294,7 +307,8 @@
       "fit": "Fit",
       "fill": "Fill",
       "stretch": "Stretch"
-    }
+    },
+    "loading": "Loading"
   },
   "search": {
     "placeholder": "Type to search…",
@@ -337,7 +351,7 @@
     "searchHidden": "Search hidden categories",
     "searchHiddenDesc": "Include hidden categories in search results",
     "engine": "Player engine",
-    "engineDesc": "Samsung's built-in player is best for most streams; try HTML5 if one stutters",
+    "engineDesc": "Samsung's built-in player decodes in hardware and is best for almost every stream; HTML5 decodes in the app and is mainly a fallback for a stream that won't play",
     "engineNative": "Samsung (AVPlay)",
     "engineHtml5": "HTML5",
     "liveFormat": "Live stream format (Xtream)",
@@ -365,7 +379,14 @@
     "skipHidden": "Don't load hidden categories",
     "skipHiddenDesc": "Titles of categories hidden in every profile are not downloaded or saved: faster start, less memory",
     "skipHiddenOn": "Applies at the next update of your sources",
-    "skipHiddenOff": "Hidden categories come back at the next update of your sources"
+    "skipHiddenOff": "Hidden categories come back at the next update of your sources",
+    "buffer": "Buffer",
+    "bufferDesc": "How much of a stream is loaded before it plays. More = fewer pauses on unstable streams, but slower to start and to change channels",
+    "buffer_auto": "Auto (3 s live, 5 s movies)",
+    "buffer_low": "Low · 2 s (fastest zapping)",
+    "buffer_medium": "Medium · 5 s",
+    "buffer_high": "High · 10 s",
+    "buffer_max": "Maximum · 20 s (very unstable streams)"
   },
   "theme": {
     "midnight": "Midnight Shell",
@@ -429,5 +450,17 @@
     "whereIdb": "browser storage",
     "testStorage": "Test storage",
     "testStorageRunning": "Testing storage…"
+  },
+  "updates": {
+    "checking": "Checking for updates…",
+    "failed": "Couldn't check for updates: {error}",
+    "available": "Version {version} is available",
+    "upToDate": "TermTV is up to date",
+    "notChecked": "Updates not checked yet",
+    "check": "Check for updates",
+    "whatsNew": "What's new",
+    "availableTitle": "TermTV {version} is available",
+    "notesTitle": "What's new in {version}",
+    "howTo": "To update: open TizenBrew, choose TizenBrew Installer, then Install from GitHub and enter b0tmtl/TermTV. Your sources and settings are kept."
   }
 }

@@ -45,7 +45,8 @@ function packRowObjects(rows: Array<Item | Category>, sid: string, kind: string)
 }
 
 function unpackRows<T>(packed: Row[] | Columns, sid: string, kind: string): T[] {
-  const rows = Array.isArray(packed) ? packed : fromColumns(packed);
+  if (!Array.isArray(packed)) return unpackColumns<T>(packed, sid, kind);
+  const rows = packed;
   const prefix = `${sid}:${kind}:`;
   for (const o of rows) {
     if (o.sourceId === undefined) o.sourceId = sid;
@@ -85,15 +86,37 @@ function packRows(rows: Array<Item | Category>, sid: string, kind: string): Colu
   return { f, r };
 }
 
-function fromColumns(c: Columns): Row[] {
-  const out: Row[] = new Array(c.r.length);
-  for (let i = 0; i < c.r.length; i++) {
+/**
+ * Columns -> items in one pass. The rebuilt fields come first so every item has the same shape
+ * (fast property access later), and nothing is deleted (`delete` makes objects slow in V8).
+ */
+function unpackColumns<T>(c: Columns, sid: string, kind: string): T[] {
+  const prefix = sid + ':' + kind + ':';
+  const f = c.f;
+  const n = c.r.length;
+  const out: Row[] = new Array(n);
+  const ckAt = f.indexOf('ck');
+  const keyAt = f.indexOf('key');
+  const pidAt = f.indexOf('providerId');
+  const srcAt = f.indexOf('sourceId');
+  const kindAt = f.indexOf('kind');
+  for (let i = 0; i < n; i++) {
     const a = c.r[i];
-    const o: Row = {};
-    for (let j = 0; j < a.length; j++) if (a[j] !== null) o[c.f[j]] = a[j];
+    const pid = pidAt >= 0 ? a[pidAt] : undefined;
+    const o: Row = {
+      key: keyAt >= 0 && a[keyAt] !== null && a[keyAt] !== undefined ? a[keyAt] : prefix + String(pid),
+      sourceId: srcAt >= 0 && a[srcAt] !== null && a[srcAt] !== undefined ? a[srcAt] : sid,
+      kind: kindAt >= 0 && a[kindAt] !== null && a[kindAt] !== undefined ? a[kindAt] : kind,
+    };
+    if (ckAt >= 0 && a[ckAt] !== null && a[ckAt] !== undefined) o.categoryKey = prefix + String(a[ckAt]);
+    for (let j = 0; j < a.length; j++) {
+      if (j === ckAt || j === keyAt || j === srcAt || j === kindAt) continue;
+      const v = a[j];
+      if (v !== null) o[f[j]] = v;
+    }
     out[i] = o;
   }
-  return out;
+  return out as unknown as T[];
 }
 
 interface LibraryLike {
@@ -144,6 +167,26 @@ export function encode(value: unknown): Uint8Array[] {
   return chunks;
 }
 
+export function gunzipBytes(chunks: Uint8Array[]): Uint8Array {
+  let total = 0;
+  for (const c of chunks) total += c.length;
+  const all = new Uint8Array(total);
+  let at = 0;
+  for (const c of chunks) {
+    all.set(c, at);
+    at += c.length;
+  }
+  return gunzipSync(all);
+}
+
+/** JSON bytes (from gunzipBytes) -> value. */
+export function parseBytes<T>(bytes: ArrayBuffer): T {
+  return JSON.parse(strFromU8(new Uint8Array(bytes))) as T;
+}
+
+/** Milliseconds per step of the last decode (Settings > About). */
+export const decodeTimes = { gunzip: 0, text: 0, parse: 0 };
+
 export function decode<T>(chunks: Uint8Array[]): T {
   let total = 0;
   for (const c of chunks) total += c.length;
@@ -153,5 +196,14 @@ export function decode<T>(chunks: Uint8Array[]): T {
     all.set(c, at);
     at += c.length;
   }
-  return JSON.parse(strFromU8(gunzipSync(all))) as T;
+  let t = Date.now();
+  const raw = gunzipSync(all);
+  decodeTimes.gunzip = Date.now() - t;
+  t = Date.now();
+  const text = strFromU8(raw);
+  decodeTimes.text = Date.now() - t;
+  t = Date.now();
+  const value = JSON.parse(text) as T;
+  decodeTimes.parse = Date.now() - t;
+  return value;
 }
