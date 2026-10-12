@@ -1,6 +1,7 @@
 # Builds and signs TermTV.wgt and attaches it to a GitHub Release, so TizenBrew Installer can install it
 # with "Install from GitHub" -> b0tmtl/TermTV. Triggered by pushing a tag like v0.1.0, or run it by hand
-# (Actions -> Release -> Run workflow): it then tags the release v<package.json version>.
+# (Actions -> Release -> Run workflow), or push to main with [release] in the commit message: those
+# tag the release v<package.json version>.
 #
 # Signing: a Tizen author certificate + the public Tizen distributor certificate (same approach as
 # TizenBrew). TVs below Tizen 7 accept that in developer mode; on Tizen 7+ TizenBrew Installer re-signs
@@ -17,6 +18,7 @@ name: Release
 on:
   push:
     tags: ['v*.*.*']
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -27,6 +29,8 @@ env:
 
 jobs:
   release:
+    # On main, only commits whose message contains [release] publish a release.
+    if: github.ref_type == 'tag' || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

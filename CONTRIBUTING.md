@@ -80,7 +80,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for how the pieces fit together
 
 ## Releasing
 
-Bump `version` in `package.json`, commit, then tag and push: `git tag v0.2.0 && git push origin v0.2.0`.
+Bump `version` in `package.json`, then either push a tag (`git tag v0.2.0 && git push origin v0.2.0`) or push to main with `[release]` in the commit message.
 The **Release** workflow builds, signs and attaches `TermTV.wgt` to a GitHub release, which is what
 TizenBrew Installer installs. Set the `TIZEN_AUTHOR_KEY` (base64 `.p12`) and `TIZEN_AUTHOR_KEY_PW`
 repository secrets once, so every release is signed by the same author and updates install in place.
