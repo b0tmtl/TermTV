@@ -5,7 +5,7 @@
 | Fact | Consequence |
 |---|---|
 | Tizen apps are web apps packaged as signed `.wgt` files | HTML / CSS / TypeScript, no native code |
-| 2018 TVs run Chromium 56 | one IIFE bundle (no ES modules), syntax lowered to ES2017, polyfills for newer APIs, no CSS grid |
+| 2017 TVs run Chromium 47 | one IIFE bundle (no ES modules), Babel down to Chromium 47, polyfills for newer APIs, no CSS grid, CSS variables resolved per theme at build time |
 | Samsung's native player is AVPlay (`webapis.avplay`) | hardware decoding of HLS, MPEG-TS, MP4, MKV; the default engine. HTML5 + hls.js / mpegts.js is the fallback |
 | AVPlay draws video *under* the web page | the page is transparent where video shows (full screen, or the live preview "hole") |
 | 1-2.5 GB RAM shared, slow CPUs | parsing in workers, compact search index, virtualized lists, guide kept to a time window |
@@ -41,7 +41,7 @@ would replace `platform/` only.
 - result normalized to `core/models.ts`, written to IndexedDB, sent to the main thread.
 
 **Guide** (library worker): XMLTV URLs from the playlist header, the M3U source settings, or Xtream's
-`xmltv.php`. Gzip detected by magic bytes and inflated with fflate (Chromium 56 has no
+`xmltv.php`. Gzip detected by magic bytes and inflated with fflate (Chromium 47 has no
 `DecompressionStream`). `XmltvParser` keeps only channels in the library and programmes inside the window
 (2 h back, 24 h ahead by default). Channels without `tvg-id` are matched by display name. Xtream channels
 without XMLTV data fall back to `get_short_epg`.

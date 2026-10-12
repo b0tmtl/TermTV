@@ -34,10 +34,12 @@ node scripts/e2e.mjs   # needs `npm run mock` and `npm run dev` running
 
 ## Rules of the road
 
-**The oldest supported TV runs Chromium 56** (Samsung 2018, Tizen 4.0). That shapes the code:
+**The oldest supported TV runs Chromium 47** (Samsung 2017, Tizen 3.0). That shapes the code:
 
-- esbuild lowers syntax to `chrome56` and `npm run check:es` verifies the output parses as ES2017;
-- runtime APIs newer than Chromium 56 need a polyfill in `src/polyfills.ts` or a fallback
+- esbuild bundles, Babel lowers the output to Chromium 47, and `npm run check:es` verifies it parses as ES2015;
+- CSS variables are resolved at build time into one stylesheet per theme (`css/theme-<id>.css`);
+- `TV_BUILD=1 npm run dev` serves the exact TV output (with Babel) instead of the faster modern build;
+- runtime APIs newer than Chromium 47 need a polyfill in `src/polyfills.ts` or a fallback
   (no `AbortController`, `IntersectionObserver`, `ResizeObserver`, `getAllKeys`, `Intl.PluralRules` guaranteed);
 - CSS: no grid, no flex `gap`, no `:focus-within`, no `aspect-ratio`;
 - TVs are slow and short on memory: virtualize long lists (`ui/VGrid.tsx`), keep parsing in workers,

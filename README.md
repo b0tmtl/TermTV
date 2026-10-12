@@ -2,7 +2,7 @@
 
 <img src="docs/banner.png" width="640" alt="TermTV">
 
-**A free, open-source IPTV player for Samsung Smart TVs (Tizen, 2018 and newer).**
+**A free, open-source IPTV player for Samsung Smart TVs (Tizen, 2017 and newer).**
 Bring your own Xtream Codes account or M3U playlist. No account, no ads, no tracking: everything stays on your TV.
 
 </div>
@@ -49,7 +49,7 @@ Bring your own Xtream Codes account or M3U playlist. No account, no ads, no trac
 
 Easiest: put the TV in developer mode, run [TizenBrew Installer](https://github.com/reisxd/TizenBrewInstaller) on your PC, choose **Install from GitHub** and enter `b0tmtl/TermTV`. Step-by-step guide (and the manual Tizen Studio method): **[docs/INSTALL.md](docs/INSTALL.md)**.
 
-Supported: Samsung Smart TVs from **2018** on (Tizen 4.0+).
+Supported: Samsung Smart TVs from **2017** on (Tizen 3.0+).
 
 ## Remote control
 

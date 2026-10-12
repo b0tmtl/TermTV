@@ -1,5 +1,5 @@
-// Small polyfills for Chromium 56 (Samsung 2018, Tizen 4.0). esbuild lowers the syntax; these
-// cover the runtime APIs TermTV uses that arrived after Chromium 56.
+// Small polyfills for Chromium 47 (Samsung 2017, Tizen 3.0). Babel lowers the syntax; these
+// cover the runtime APIs TermTV uses that arrived after Chromium 47.
 
 /* eslint-disable no-extend-native */
 

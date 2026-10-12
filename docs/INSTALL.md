@@ -6,7 +6,7 @@ Samsung TVs only install signed apps, so until TermTV is in the Samsung store yo
 - **[Easy: TizenBrew Installer](#easy-tizenbrew-installer)**: one app on your PC, no Tizen Studio, ~5 minutes.
 - **[Manual: Tizen Studio](#manual-tizen-studio)**: for developers building from source.
 
-Works on Samsung Smart TVs from 2018 on (Tizen 4.0+), on the same network as your PC.
+Works on Samsung Smart TVs from 2017 on (Tizen 3.0+), on the same network as your PC.
 
 ## Easy: TizenBrew Installer
 

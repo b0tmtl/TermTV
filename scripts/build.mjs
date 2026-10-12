@@ -1,15 +1,18 @@
 // TermTV build script.
 //
-// Produces a static app in dist/ that runs on Tizen 4.0+ (Chromium 56):
-//  - one IIFE bundle (Chromium 56 has no ES module support)
-//  - one IIFE bundle per Web Worker
-//  - CSS lowered to chrome56
+// Produces a static app in dist/ that runs on Tizen 3.0+ (2017 TVs, Chromium 47):
+//  - one IIFE bundle (no ES module support on those engines), then Babel down to Chromium 47
+//    (destructuring, block scoping, async functions -> generators)
+//  - one IIFE bundle per Web Worker, same treatment
+//  - one stylesheet per theme with CSS variables resolved (Chromium 47 has no CSS variables)
 //  - the fallback player libraries copied as standalone scripts (loaded on demand)
 //
 // Usage: node scripts/build.mjs            production build
 //        node scripts/build.mjs --serve    dev server with rebuild on change
 
 import * as esbuild from 'esbuild';
+import { transformSync } from '@babel/core';
+import { watch } from 'node:fs';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { request as httpRequest, createServer } from 'node:http';
 import { request as httpsRequest } from 'node:https';
@@ -21,7 +24,10 @@ const dist = join(root, 'dist');
 const serve = process.argv.includes('--serve');
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 
-const TARGET = ['chrome56'];
+// esbuild bundles to ES2017; Babel then lowers JavaScript to the oldest supported engine.
+const TARGET = ['es2017'];
+const CSS_TARGET = ['chrome47'];
+const OLDEST = { chrome: '47' };
 
 const define = {
   __DEV__: JSON.stringify(serve),
@@ -67,10 +73,68 @@ function copyStatic() {
   writeFileSync(cfgPath, readFileSync(cfgPath, 'utf8').replace(/version="[^"]*"(\s+viewmodes)/, `version="${pkg.version}"$1`));
 }
 
+// ---- Themes: one stylesheet per theme with every var(--x) replaced by its value ----------------
+const themeCache = join(root, 'node_modules/.cache/termtv-themes');
+const THEME_BLOCK = /(?::root,\s*)?\[data-theme='([\w-]+)'\]\s*\{([^}]*)\}/g;
+
+function writeThemeSources() {
+  const src = readFileSync(join(root, 'src/styles/main.css'), 'utf8');
+  const themes = {};
+  let m;
+  THEME_BLOCK.lastIndex = 0;
+  while ((m = THEME_BLOCK.exec(src))) {
+    const vars = {};
+    for (const decl of m[2].split(';')) {
+      const i = decl.indexOf(':');
+      if (i > 0) vars[decl.slice(0, i).trim()] = decl.slice(i + 1).trim();
+    }
+    themes[m[1]] = vars;
+  }
+  const body = src.replace(THEME_BLOCK, '');
+  mkdirSync(themeCache, { recursive: true });
+  return Object.keys(themes).map((id) => {
+    const vars = { ...themes.midnight, ...themes[id] };
+    const css = body.replace(/var\((--[\w-]+)\)/g, (whole, name) => {
+      if (!(name in vars)) throw new Error(`Theme ${id}: unknown CSS variable ${name}`);
+      return vars[name];
+    });
+    const file = join(themeCache, `theme-${id}.css`);
+    writeFileSync(file, css);
+    return file;
+  });
+}
+
+// ---- Babel pass for the JavaScript bundles ----------------------------------------------------
+const babelPlugin = {
+  name: 'babel-oldest-tv',
+  setup(build) {
+    build.onEnd((result) => {
+      // Dev runs in a modern browser; TV_BUILD=1 npm run dev serves the exact TV output instead.
+      if (result.errors.length || (serve && !process.env.TV_BUILD)) return;
+      const outs = build.initialOptions.outfile
+        ? [build.initialOptions.outfile]
+        : readdirSync(build.initialOptions.outdir).filter((f) => f.endsWith('.js')).map((f) => join(build.initialOptions.outdir, f));
+      for (const file of outs) {
+        const out = transformSync(readFileSync(file, 'utf8'), {
+          babelrc: false,
+          configFile: false,
+          sourceType: 'script',
+          compact: true,
+          comments: false,
+          presets: [['@babel/preset-env', { targets: OLDEST, modules: false, bugfixes: true }]],
+        });
+        writeFileSync(file, out.code);
+      }
+    });
+  },
+};
+
+const themeEntries = writeThemeSources();
+
 const builds = [
-  { ...common, entryPoints: [join(root, 'src/main.tsx')], outfile: join(dist, 'js/app.js') },
-  { ...common, entryPoints: workerEntries, outdir: join(dist, 'js/workers'), entryNames: '[name]' },
-  { ...common, entryPoints: [join(root, 'src/styles/main.css')], outfile: join(dist, 'css/app.css'), external: ['../fonts/*'] },
+  { ...common, entryPoints: [join(root, 'src/main.tsx')], outfile: join(dist, 'js/app.js'), plugins: [babelPlugin] },
+  { ...common, entryPoints: workerEntries, outdir: join(dist, 'js/workers'), entryNames: '[name]', plugins: [babelPlugin] },
+  { ...common, target: CSS_TARGET, entryPoints: themeEntries, outdir: join(dist, 'css'), entryNames: '[name]', external: ['../fonts/*'] },
 ];
 
 rmSync(dist, { recursive: true, force: true });
@@ -79,6 +143,14 @@ copyStatic();
 if (serve) {
   const ctxs = await Promise.all(builds.map((b) => esbuild.context(b)));
   await Promise.all(ctxs.map((c) => c.watch()));
+  // Regenerate the theme sources when the stylesheet changes (esbuild then rebuilds them).
+  watch(join(root, 'src/styles/main.css'), () => {
+    try {
+      writeThemeSources();
+    } catch (e) {
+      console.error(e.message);
+    }
+  });
   const inner = await ctxs[0].serve({ servedir: dist, port: 0, host: '127.0.0.1' });
   const port = Number(process.env.PORT || 5173);
   createServer((req, res) => {

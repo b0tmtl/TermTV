@@ -57,6 +57,9 @@ export function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
+    // Each theme is its own stylesheet (CSS variables are resolved at build time for old TVs).
+    const link = document.getElementById('theme-css') as HTMLLinkElement | null;
+    if (link) link.href = `css/theme-${theme}.css`;
   }, [theme]);
 
   useEffect(() => {
