@@ -27,6 +27,9 @@ ctx.onmessage = (e: MessageEvent) => {
         post({ type: 'built', id: req.id, size: idx.size, ms: Date.now() - t0 });
         return;
       }
+      case 'variants':
+        post({ type: 'variants', id: req.id, docs: library ? library.groupMembers(req.doc) : [] });
+        return;
       case 'exclude':
         exclude = req.mask;
         post({ type: 'ok', id: req.id });

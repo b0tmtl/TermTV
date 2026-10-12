@@ -4,16 +4,15 @@
 import { Gunzip } from 'fflate';
 import { normalizeText } from '@/core/normalize';
 import type { Programme, Source } from '@/core/models';
-import { dbDelete, dbGet, dbPut } from '@/platform/db';
-import { decode, encode, FORMAT, packLibrary, unpackLibrary, type CacheMeta } from './cache-codec';
+import { decode, encode, packLibrary, unpackLibrary } from './cache-codec';
 import { setUrlRewriter, streamBytes } from '@/platform/http';
 import { M3UCollector, M3UParser } from '@/providers/m3u';
 import { XmltvParser } from '@/providers/xmltv';
 import { XtreamClient } from '@/providers/xtream';
 import type { EpgChannelRef, LibraryRequest, LibraryResponse, SourceEpg, SourceLibrary } from './protocol';
 
-const ctx = self as unknown as { postMessage(m: LibraryResponse): void; onmessage: ((e: MessageEvent) => void) | null };
-const post = (m: LibraryResponse) => ctx.postMessage(m);
+const ctx = self as unknown as { postMessage(m: LibraryResponse, transfer?: Transferable[]): void; onmessage: ((e: MessageEvent) => void) | null };
+const post = (m: LibraryResponse, transfer?: Transferable[]) => (ctx.postMessage as (m: LibraryResponse, t?: Transferable[]) => void)(m, transfer);
 
 // Download progress fires per chunk; tell the UI at most 4 times a second.
 let lastProgress = 0;
@@ -37,54 +36,21 @@ export function errorText(err: unknown): string {
   return e.name || String(err);
 }
 
-/**
- * Caching is best-effort: a TV that refuses to store a big library (quota, old IndexedDB) should
- * still play it; it will just download again on the next launch.
- */
-async function cache(store: 'library' | 'epg', key: string, value: unknown, id: number) {
-  try {
-    await saveChunked(store, key, store === 'library' ? packLibrary(value as SourceLibrary) : value);
-  } catch (err) {
-    console.warn('cache failed', store, errorText(err));
-    post({ type: 'progress', id, stage: 'cache-failed' });
-  }
+// Caching: the worker only compresses (`encode`) and decompresses (`decode`); the main thread
+// reads and writes IndexedDB. IndexedDB inside a worker is unreliable on 2017 TVs, while the main
+// thread's works (that's where sources and settings are saved).
+
+/** Last refreshed results, kept until the main thread asks to encode them (saves a round trip). */
+const pending = new Map<string, unknown>();
+const pendingKey = (store: string, key: string) => store + '|' + key;
+
+function encodeForCache(store: 'library' | 'epg', value: unknown): ArrayBuffer[] {
+  return encode(store === 'library' ? packLibrary(value as SourceLibrary) : value).map((c) => c.buffer as ArrayBuffer);
 }
 
-const metaKey = (key: string) => key + '#meta';
-const chunkKey = (key: string, i: number) => key + '#' + i;
-
-/** Writes chunks first and the meta record last, so a half-written cache is never read. */
-async function saveChunked(store: 'library' | 'epg', key: string, value: unknown) {
-  const chunks = encode(value);
-  const old = await dbGet<CacheMeta>(store, metaKey(key)).catch(() => undefined);
-  await dbDelete(store, metaKey(key));
-  for (let i = 0; i < chunks.length; i++) await dbPut(store, chunkKey(key, i), chunks[i].buffer);
-  let bytes = 0;
-  for (const c of chunks) bytes += c.length;
-  await dbPut(store, metaKey(key), { format: FORMAT, chunks: chunks.length, bytes, savedAt: Date.now() } as CacheMeta);
-  if (old) for (let i = chunks.length; i < old.chunks; i++) await dbDelete(store, chunkKey(key, i)).catch(() => undefined);
-  // The old one-record format, from before 0.1.7.
-  await dbDelete(store, key).catch(() => undefined);
-}
-
-async function loadChunked<T>(store: 'library' | 'epg', key: string): Promise<T | undefined> {
-  const meta = await dbGet<CacheMeta>(store, metaKey(key));
-  if (!meta || meta.format !== FORMAT) return dbGet<T>(store, key);
-  const chunks: Uint8Array[] = [];
-  for (let i = 0; i < meta.chunks; i++) {
-    const buf = await dbGet<ArrayBuffer>(store, chunkKey(key, i));
-    if (!buf) return undefined;
-    chunks.push(new Uint8Array(buf));
-  }
-  const value = decode<unknown>(chunks);
-  return (store === 'library' ? unpackLibrary(value as Record<string, unknown>) : value) as T;
-}
-
-async function deleteChunked(store: 'library' | 'epg', key: string) {
-  const meta = await dbGet<CacheMeta>(store, metaKey(key)).catch(() => undefined);
-  await dbDelete(store, metaKey(key)).catch(() => undefined);
-  if (meta) for (let i = 0; i < meta.chunks; i++) await dbDelete(store, chunkKey(key, i)).catch(() => undefined);
-  await dbDelete(store, key).catch(() => undefined);
+function decodeFromCache(store: 'library' | 'epg', chunks: ArrayBuffer[]): unknown {
+  const value = decode<unknown>(chunks.map((b) => new Uint8Array(b)));
+  return store === 'library' ? unpackLibrary(value as Record<string, unknown>) : value;
 }
 
 ctx.onmessage = (e: MessageEvent) => {
@@ -94,30 +60,33 @@ ctx.onmessage = (e: MessageEvent) => {
 
 async function handle(req: LibraryRequest) {
   switch (req.type) {
-    case 'load':
-      post({ type: 'library', id: req.id, library: (await loadChunked<SourceLibrary>('library', req.sourceId).catch(() => undefined)) || null });
+    case 'decode': {
+      const value = decodeFromCache(req.store, req.chunks);
+      if (req.store === 'library') post({ type: 'library', id: req.id, library: value as SourceLibrary });
+      else post({ type: 'epg', id: req.id, epg: value as SourceEpg });
       return;
-    case 'loadEpg':
-      post({ type: 'epg', id: req.id, epg: (await loadChunked<SourceEpg>('epg', req.sourceId).catch(() => undefined)) || null });
+    }
+    case 'encode': {
+      const k = pendingKey(req.store, req.key);
+      const value = pending.get(k);
+      pending.delete(k);
+      const chunks = value ? encodeForCache(req.store, value) : [];
+      post({ type: 'encoded', id: req.id, chunks }, chunks);
       return;
-    case 'delete':
-      await deleteChunked('library', req.sourceId);
-      await deleteChunked('epg', req.sourceId);
-      post({ type: 'ok', id: req.id });
-      return;
+    }
     case 'refresh': {
       useProxy(req.proxy);
       const lib = await refresh(req.source, req.id);
       // Show it right away; compressing and saving takes a few seconds on a TV.
+      pending.set(pendingKey('library', lib.sourceId), lib);
       post({ type: 'library', id: req.id, library: lib });
-      await cache('library', lib.sourceId, lib, req.id);
       return;
     }
     case 'epg': {
       useProxy(req.proxy);
       const epg = await loadEpg(req.source, req.urls, req.channels, req.hoursBack, req.hoursAhead, req.id);
+      pending.set(pendingKey('epg', epg.sourceId), epg);
       post({ type: 'epg', id: req.id, epg });
-      await cache('epg', epg.sourceId, epg, req.id);
       return;
     }
   }

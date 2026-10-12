@@ -117,3 +117,15 @@ describe('search performance', () => {
     expect(Math.max(...times)).toBeLessThan(60);
   });
 });
+
+describe('groupMembers', () => {
+  it('returns the other versions of the same title', () => {
+    const dune = docs.findIndex((d) => d.text === 'Dune (2021)');
+    const dune4k = docs.findIndex((d) => d.text === '4K | Dune [UHD] (2021)');
+    const part2 = docs.findIndex((d) => d.text === 'Dune: Part Two (2024)');
+    expect(idx.groupMembers(dune)).toEqual([dune4k]);
+    expect(idx.groupMembers(dune4k)).toEqual([dune]);
+    expect(idx.groupMembers(part2)).toEqual([]);
+    expect(idx.groupMembers(0)).toEqual([]);
+  });
+});

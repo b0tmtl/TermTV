@@ -410,6 +410,11 @@
     "device": "Device",
     "disclaimer": "TermTV does not provide any content. You need your own playlist or subscription.",
     "credits": "Credits",
-    "creditsText": "Preact (MIT) · hls.js (Apache-2.0) · mpegts.js (Apache-2.0) · fflate (MIT) · JetBrains Mono (OFL-1.1)"
+    "creditsText": "Preact (MIT) · hls.js (Apache-2.0) · mpegts.js (Apache-2.0) · fflate (MIT) · JetBrains Mono (OFL-1.1)",
+    "cache": "Library cache",
+    "cacheSaved": "{source}: saved, {size} ({date})",
+    "cacheLoaded": "{source}: loaded from cache, {size} (saved {date})",
+    "cacheFailed": "{source}: not saved, {error}",
+    "cacheNone": "{source}: not saved yet"
   }
 }

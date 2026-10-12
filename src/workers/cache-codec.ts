@@ -16,6 +16,8 @@ export interface CacheMeta {
   chunks: number;
   bytes: number;
   savedAt: number;
+  /** Chunks stored as strings (TVs whose IndexedDB refuses ArrayBuffers). */
+  text?: boolean;
 }
 
 type Row = Record<string, unknown>;

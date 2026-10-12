@@ -5,7 +5,7 @@ import { cleanTitle, splitYear } from '@/core/normalize';
 import { formatDuration, formatMinutes, t } from '@/i18n';
 import { focusable, focused, focusFirst } from '@/navigation/focus';
 import { navigate, replace } from '@/navigation/router';
-import { itemByKey, movieDetails, seriesDetails, variantsOf } from '@/state/library';
+import { itemByKey, libraryState, movieDetails, seriesDetails, variantsOf } from '@/state/library';
 import { play } from '@/state/player';
 import { useStore } from '@/state/store';
 import { user } from '@/state/user';
@@ -18,6 +18,7 @@ export function DetailsScreen({ itemKey }: { itemKey: string }) {
   const item = itemByKey(itemKey);
   const data = useStore(user, (s) => s.data);
   const sources = useStore(user, (s) => s.sources);
+  const searchReady = useStore(libraryState, (s) => s.searchReady);
   const [details, setDetails] = useState<MovieDetails | SeriesDetails | null>(null);
   const [error, setError] = useState('');
   const [season, setSeason] = useState<number | null>(null);
@@ -31,6 +32,17 @@ export function DetailsScreen({ itemKey }: { itemKey: string }) {
   useEffect(() => {
     if (details && root.current && focused() === autoFocused.current) setTimeout(() => focusFirst(root.current!), 0);
   }, [details]);
+
+  const [variants, setVariants] = useState<Item[]>([]);
+  useEffect(() => {
+    setVariants([]);
+    if (!item || item.kind === 'live') return;
+    let alive = true;
+    variantsOf(item).then((v) => alive && setVariants(v));
+    return () => {
+      alive = false;
+    };
+  }, [itemKey, searchReady]);
 
   useEffect(() => {
     if (!item || item.kind === 'live') return;
@@ -47,7 +59,7 @@ export function DetailsScreen({ itemKey }: { itemKey: string }) {
   const year = (details && details.year) || item.year || splitYear(item.name).year;
   const rating = (details && details.rating) || item.rating;
   const fav = data.favorites.indexOf(item.key) >= 0;
-  const variants = variantsOf(item);
+
   const sourceName = (id: string) => (sources.find((s) => s.id === id) || { name: '' }).name;
 
   const meta: string[] = [];

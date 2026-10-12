@@ -7,10 +7,10 @@ import {
   buildCategoryViews, isHidden, markKnown, sortItems, visibleCategories, type CategoryView, type ItemSort,
 } from '@/core/categories';
 import type { Category, Channel, Episode, Item, MediaKind, Movie, Programme, Series, SeriesDetails, MovieDetails, Source } from '@/core/models';
-import { dedupeKey } from '@/core/normalize';
 import { ALL_KINDS, DocKind, type SearchResult } from '@/core/search/engine';
 import { XtreamClient } from '@/providers/xtream';
 import type { EpgChannelRef, SearchBuildDocs, SourceEpg, SourceLibrary } from '@/workers/protocol';
+import { cacheState, deleteCache, loadCache, saveCache } from './cache';
 import { createStore } from './store';
 import { updateCategoryPrefs, user } from './user';
 import { libraryWorker, searchWorker } from './workers';
@@ -112,10 +112,19 @@ export async function initLibrary(): Promise<void> {
   libraryState.set({ status: 'loading' });
   await Promise.all(
     sources.map(async (s) => {
-      const res = await libraryWorker().call({ type: 'load', sourceId: s.id }).catch(() => null);
-      if (res && res.type === 'library' && res.library) sourceLibs.set(s.id, res.library);
-      const epg = await libraryWorker().call({ type: 'loadEpg', sourceId: s.id }).catch(() => null);
-      if (epg && epg.type === 'epg' && epg.epg) sourceEpgs.set(s.id, epg.epg);
+      const lib = await loadCache('library', s.id);
+      if (lib) {
+        const res = await libraryWorker().call({ type: 'decode', store: 'library', chunks: lib }, undefined, lib).catch((e) => {
+          cacheState.set((c) => ({ library: { ...c.library, [s.id]: { ok: false, at: Date.now(), error: 'Decode: ' + String(e && e.message) } } }));
+          return null;
+        });
+        if (res && res.type === 'library' && res.library) sourceLibs.set(s.id, res.library);
+      }
+      const epg = await loadCache('epg', s.id);
+      if (epg) {
+        const res = await libraryWorker().call({ type: 'decode', store: 'epg', chunks: epg }, undefined, epg).catch(() => null);
+        if (res && res.type === 'epg' && res.epg) sourceEpgs.set(s.id, res.epg);
+      }
     }),
   );
   combine();
@@ -123,6 +132,16 @@ export async function initLibrary(): Promise<void> {
   const stale = sources.filter((s) => !sourceLibs.has(s.id) || user.get().app.refreshOnLaunch);
   if (stale.length) refreshSources(stale);
   else if (!byKey.size) libraryState.set({ status: 'empty' });
+}
+
+/** Has the worker compress the last refresh, then stores it (in the background). */
+async function persist(store: 'library' | 'epg', sourceId: string): Promise<void> {
+  try {
+    const res = await libraryWorker().call({ type: 'encode', store, key: sourceId });
+    if (res.type === 'encoded') await saveCache(store, sourceId, res.chunks);
+  } catch (e) {
+    if (store === 'library') cacheState.set((c) => ({ library: { ...c.library, [sourceId]: { ok: false, at: Date.now(), error: 'Compress: ' + String(e && (e as Error).message) } } }));
+  }
 }
 
 export async function refreshSources(sources: Source[] = enabledSources()): Promise<void> {
@@ -153,7 +172,7 @@ export async function refreshSource(source: Source): Promise<boolean> {
     });
     done();
     combine();
-    refreshEpg(source);
+    persist('library', source.id).then(() => refreshEpg(source));
     return true;
   } catch (e) {
     done();
@@ -178,6 +197,7 @@ export async function refreshEpg(source: Source): Promise<void> {
       sourceEpgs.set(source.id, res.epg);
       libraryState.set((s) => ({ epgVersion: s.epgVersion + 1 }));
       buildGuideSearch();
+      persist('epg', source.id);
     }
   } catch (e) {
     console.warn('EPG failed', source.name, e);
@@ -187,7 +207,8 @@ export async function refreshEpg(source: Source): Promise<void> {
 export async function forgetSource(sourceId: string): Promise<void> {
   sourceLibs.delete(sourceId);
   sourceEpgs.delete(sourceId);
-  await libraryWorker().call({ type: 'delete', sourceId }).catch(() => undefined);
+  await deleteCache('library', sourceId);
+  await deleteCache('epg', sourceId);
   combine();
 }
 
@@ -678,25 +699,15 @@ user.subscribe((s) => {
 
 // ---- Versions of the same title (other sources, FHD / 4K) ---------------------------------------
 
-let variantIndex: Map<string, string[]> | null = null;
-let variantVersion = -1;
-
-/** Other items with the same title + year (same movie in another source or quality). */
-export function variantsOf(item: Item): Item[] {
+/**
+ * Other items with the same title + year. The search worker already grouped them while indexing;
+ * computing it here meant normalizing every title on the UI thread (a 10 s freeze on old TVs).
+ */
+export async function variantsOf(item: Item): Promise<Item[]> {
   if (item.kind === 'live') return [];
-  const v = libraryState.get().version;
-  if (!variantIndex || variantVersion !== v) {
-    variantIndex = new Map();
-    variantVersion = v;
-    for (const list of [movies, series] as Item[][]) {
-      for (const it of list) {
-        const k = it.kind + '|' + dedupeKey(it.name, it.kind !== 'live' ? it.year : undefined);
-        const l = variantIndex.get(k);
-        if (l) l.push(it.key);
-        else variantIndex.set(k, [it.key]);
-      }
-    }
-  }
-  const keys = variantIndex.get(item.kind + '|' + dedupeKey(item.name, item.year)) || [];
-  return keys.filter((k) => k !== item.key).map((k) => byKey.get(k)).filter((i): i is Item => !!i);
+  const doc = docIndexByKey.get(item.key);
+  if (doc === undefined) return [];
+  const res = await searchWorker().call({ type: 'variants', doc }).catch(() => null);
+  if (!res || res.type !== 'variants') return [];
+  return res.docs.map((d) => docItems[d]).filter((i): i is Item => !!i && i.kind === item.kind);
 }

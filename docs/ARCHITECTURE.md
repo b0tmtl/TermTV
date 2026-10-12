@@ -131,7 +131,10 @@ throttling in the browser with 100k titles: 1-30 ms per key press.
 The IndexedDB of 2017 TVs refuses one huge record, so caches use `workers/cache-codec.ts`: fields that can
 be rebuilt (`key`, `sourceId`, `kind`, the category key prefix) are dropped, the rest is JSON, gzipped with
 fflate and split into 1 MB `ArrayBuffer` chunks, each written in its own transaction; the `#meta` record is
-written last so a half-written cache is never read. 100k titles: 26 MB of JSON become under 2 MB.
+written last so a half-written cache is never read. The worker only compresses and decompresses: IndexedDB
+is read and written from the main thread (`state/cache.ts`), because IndexedDB inside workers is unreliable on
+2017 TVs. A TV that refuses `ArrayBuffer` values gets the chunks as strings. Settings → About shows whether
+each source's library was saved or loaded from the cache, or why saving failed. 100k titles: 26 MB of JSON become under 2 MB.
 
 **Keeping the UI thread light.** Anything that touches every title runs once per library or settings change,
 not per render: category lookups are maps, hidden / locked checks are cached per category, "Recently added",

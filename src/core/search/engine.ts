@@ -174,6 +174,15 @@ export class SearchIndex {
     return idx;
   }
 
+  /** Other docs in the same duplicate group (same title + year: other sources, FHD / 4K). */
+  groupMembers(doc: number): number[] {
+    const g = this.groupIds[doc];
+    const out: number[] = [];
+    if (g === undefined || g < 0) return out;
+    for (let d = 0; d < this.groupIds.length; d++) if (d !== doc && this.groupIds[d] === g) out.push(d);
+    return out;
+  }
+
   serialize(): SerializedIndex {
     return {
       words: this.words,

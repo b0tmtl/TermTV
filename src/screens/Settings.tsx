@@ -8,6 +8,7 @@ import { navigate, resetTo, updateRoute } from '@/navigation/router';
 import { BACKUP_NAME, openTextFile, saveTextFile } from '@/platform/files';
 import { deviceInfo } from '@/platform/tv';
 import { counts, forgetSource, libraryState, refreshEpg, refreshSource, refreshSources, sourceLibrary, sourcesChanged } from '@/state/library';
+import { cacheState } from '@/state/cache';
 import { useStore } from '@/state/store';
 import {
   exportBackup, importBackup, saveSources, updateApp, updateCategoryPrefs, updateSettings, user, type ProfileSettings, type SubtitleStyle, type ThemeId,
@@ -418,6 +419,28 @@ function LanguagePane() {
   );
 }
 
+function CacheStatus() {
+  const cache = useStore(cacheState, (s) => s.library);
+  const sources = useStore(user, (s) => s.sources);
+  if (!sources.length) return null;
+  const size = (b?: number) => (!b ? '' : b < 1048576 ? Math.max(1, Math.round(b / 1024)) + ' KB' : (b / 1048576).toFixed(1) + ' MB');
+  return (
+    <div class="dim" style={{ marginTop: 10 }}>
+      {t('about.cache')}:
+      {sources.map((src) => {
+        const c = cache[src.id];
+        const vars = { source: src.name, size: size(c && c.bytes), date: c ? formatDate(c.at) : '', error: (c && c.error) || '' };
+        const text = !c ? t('about.cacheNone', vars) : !c.ok ? t('about.cacheFailed', vars) : c.loaded ? t('about.cacheLoaded', vars) : t('about.cacheSaved', vars);
+        return (
+          <div key={src.id} class={c && !c.ok ? 'bad' : ''} style={{ fontSize: 21 }}>
+            {text}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function AboutPane() {
   const d = deviceInfo();
   return (
@@ -433,6 +456,7 @@ function AboutPane() {
       <div style={{ marginTop: 20 }} class="dim">
         {t('about.device')}: {d.model} {d.tizenVersion ? `· Tizen ${d.tizenVersion}` : ''}
       </div>
+      <CacheStatus />
       <div class="dim" style={{ fontSize: 20 }}>{t('about.disclaimer')}</div>
       <div style={{ marginTop: 20 }}>
         <span class="btn" {...focusable({ onEnter: () => alertDialog(t('about.credits'), t('about.creditsText')) })}>

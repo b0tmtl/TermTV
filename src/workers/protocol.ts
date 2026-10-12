@@ -36,15 +36,15 @@ export interface EpgChannelRef {
 
 export type LibraryRequest =
   | { type: 'refresh'; id: number; source: Source; proxy?: string }
-  | { type: 'load'; id: number; sourceId: string }
-  | { type: 'epg'; id: number; source: Source; urls: string[]; channels: EpgChannelRef[]; hoursBack: number; hoursAhead: number; proxy?: string }
-  | { type: 'loadEpg'; id: number; sourceId: string }
-  | { type: 'delete'; id: number; sourceId: string };
+  | { type: 'decode'; id: number; store: 'library' | 'epg'; chunks: ArrayBuffer[] }
+  | { type: 'encode'; id: number; store: 'library' | 'epg'; key: string }
+  | { type: 'epg'; id: number; source: Source; urls: string[]; channels: EpgChannelRef[]; hoursBack: number; hoursAhead: number; proxy?: string };
 
 export type LibraryResponse =
   | { type: 'progress'; id: number; stage: string; loaded?: number; total?: number }
   | { type: 'library'; id: number; library: SourceLibrary | null }
   | { type: 'epg'; id: number; epg: SourceEpg | null }
+  | { type: 'encoded'; id: number; chunks: ArrayBuffer[] }
   | { type: 'ok'; id: number }
   | { type: 'error'; id: number; message: string };
 
@@ -66,11 +66,13 @@ export interface SearchBuildDocs {
 export type SearchRequest =
   | { type: 'build'; id: number; docs: SearchBuildDocs; guide?: boolean }
   | { type: 'query'; id: number; q: string; kinds: number; limit: number; guide?: boolean }
+  | { type: 'variants'; id: number; doc: number }
   | { type: 'exclude'; id: number; mask: Uint8Array | null }
   | { type: 'boost'; id: number; boosts: Array<[number, number]> };
 
 export type SearchResponse =
   | { type: 'built'; id: number; size: number; ms: number }
   | { type: 'result'; id: number; result: SearchResult }
+  | { type: 'variants'; id: number; docs: number[] }
   | { type: 'ok'; id: number }
   | { type: 'error'; id: number; message: string };
