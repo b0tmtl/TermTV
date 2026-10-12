@@ -47,7 +47,7 @@ Bring your own Xtream Codes account or M3U playlist. No account, no ads, no trac
 
 ## Install on a Samsung TV
 
-TermTV is distributed as a signed `.wgt` package that you **sideload** on your TV (developer mode). Step-by-step guide: **[docs/INSTALL.md](docs/INSTALL.md)**.
+Easiest: put the TV in developer mode, run [TizenBrew Installer](https://github.com/reisxd/TizenBrewInstaller) on your PC, choose **Install from GitHub** and enter `b0tmtl/TermTV`. Step-by-step guide (and the manual Tizen Studio method): **[docs/INSTALL.md](docs/INSTALL.md)**.
 
 Supported: Samsung Smart TVs from **2018** on (Tizen 4.0+).
 

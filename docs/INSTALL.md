@@ -1,16 +1,39 @@
-# Installing TermTV on a Samsung TV (sideload)
+# Installing TermTV on a Samsung TV
 
-Samsung TVs only install signed apps. Until TermTV is in the Samsung store, you install it yourself in
-**developer mode**, with a free Samsung certificate that is tied to your TV. It takes about 20 minutes
-the first time; updates are one command after that.
+Samsung TVs only install signed apps, so until TermTV is in the Samsung store you install it in
+**developer mode**. There are two ways:
 
-What you need:
+- **[Easy: TizenBrew Installer](#easy-tizenbrew-installer)**: one app on your PC, no Tizen Studio, ~5 minutes.
+- **[Manual: Tizen Studio](#manual-tizen-studio)**: for developers building from source.
 
-- a Samsung Smart TV from 2018 or newer (Tizen 4.0+), on the same network as your computer;
-- a Windows, macOS or Linux computer;
-- a free Samsung account.
+Works on Samsung Smart TVs from 2018 on (Tizen 4.0+), on the same network as your PC.
 
-## 1. Turn on developer mode on the TV
+## Easy: TizenBrew Installer
+
+[TizenBrew Installer](https://github.com/reisxd/TizenBrewInstaller) (open source, GPL-3.0) installs apps
+straight from a GitHub release. On Tizen 7+ TVs (2023 and newer) it signs the app with your own free
+Samsung certificate automatically.
+
+1. **Developer mode on the TV**
+   1. Find your PC's IP address (Windows PowerShell: `Get-NetIPAddress -AddressFamily IPv4`).
+   2. On the TV open **Apps**, then type **1 2 3 4 5** on the remote.
+   3. Switch **Developer mode** to **On**, enter your **PC's IP**, press OK.
+   4. Restart the TV (hold the power button until the logo appears).
+2. **Run TizenBrew Installer on your PC**: download the file for your system from
+   [its releases page](https://github.com/reisxd/TizenBrewInstaller/releases/latest) and run it
+   (macOS / Linux: `chmod +x` it first). It finds the TV on your network.
+3. **Tizen 7+ only**: when asked, sign in with a Samsung account to create the certificate.
+4. Choose **Install from GitHub**, enter **`b0tmtl/TermTV`**, and confirm.
+
+TermTV appears in **Apps** on the TV. To update, repeat step 4 when a new version is released.
+
+> The repository must be public for this to work (the installer downloads the latest GitHub release).
+
+## Manual: Tizen Studio
+
+What you need: a Windows, macOS or Linux PC and a free Samsung account. About 20 minutes the first time.
+
+### 1. Turn on developer mode on the TV
 
 1. Find your computer's IP address (Windows: `ipconfig` · macOS / Linux: `ip addr` or System Settings → Network).
 2. On the TV, open **Apps** (Smart Hub → Apps).
@@ -20,7 +43,7 @@ What you need:
 
 Note the TV's own IP address (Settings → General → Network → Network Status → IP Settings).
 
-## 2. Install Tizen Studio
+### 2. Install Tizen Studio
 
 1. Download **Tizen Studio with IDE installer** from <https://developer.tizen.org/development/tizen-studio/download>.
 2. Install it, then open the **Package Manager**:
@@ -30,7 +53,7 @@ Note the TV's own IP address (Settings → General → Network → Network Statu
 The command-line tool is then at `~/tizen-studio/tools/ide/bin/tizen` (Windows: `C:\tizen-studio\tools\ide\bin\tizen.bat`)
 and the device bridge at `~/tizen-studio/tools/sdb`. Adding both folders to your `PATH` is convenient.
 
-## 3. Connect to the TV
+### 3. Connect to the TV
 
 ```bash
 sdb connect <TV-IP>
@@ -39,7 +62,7 @@ sdb devices        # shows the TV, e.g.  192.168.1.50:26101   device   QE55Q80TA
 
 If it fails: check that developer mode shows your computer's IP, and that both are on the same network.
 
-## 4. Create a Samsung certificate (once)
+### 4. Create a Samsung certificate (once)
 
 1. In Tizen Studio: **Tools → Certificate Manager → +**.
 2. Choose **Samsung**, then device type **TV**.
@@ -49,7 +72,7 @@ If it fails: check that developer mode shows your computer's IP, and that both a
    to install on other TVs later, add their DUIDs here.
 6. Finish. The profile becomes the active one.
 
-## 5. Build, sign and install
+### 5. Build, sign and install
 
 ```bash
 git clone https://github.com/b0tmtl/termtv.git

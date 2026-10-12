@@ -1,0 +1,82 @@
+# Builds and signs TermTV.wgt and attaches it to a GitHub Release, so TizenBrew Installer can install it
+# with "Install from GitHub" -> b0tmtl/TermTV. Triggered by pushing a tag like v0.1.0.
+#
+# Signing: a Tizen author certificate + the public Tizen distributor certificate (same approach as
+# TizenBrew). TVs below Tizen 7 accept that in developer mode; on Tizen 7+ TizenBrew Installer re-signs
+# the package with the user's own Samsung certificate.
+#
+# Secrets (keep them: updates must be signed with the same author certificate):
+#   TIZEN_AUTHOR_KEY      base64 of the author .p12
+#   TIZEN_AUTHOR_KEY_PW   its password
+# Without them a temporary certificate is generated (fine for a first test, but later versions
+# won't install over it until you uninstall).
+
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  TIZEN_STUDIO_VER: '5.6'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+
+      - name: Install Tizen CLI
+        run: |
+          sudo apt-get install -y expect
+          curl -fLo tizen-installer "https://download.tizen.org/sdk/Installer/tizen-studio_${TIZEN_STUDIO_VER}/web-cli_Tizen_Studio_${TIZEN_STUDIO_VER}_ubuntu-64.bin"
+          chmod +x tizen-installer
+          ./tizen-installer --accept-license "$GITHUB_WORKSPACE/tizen-studio"
+          rm tizen-installer
+
+      - name: Prepare certificate
+        env:
+          KEY: ${{ secrets.TIZEN_AUTHOR_KEY }}
+          KEY_PW: ${{ secrets.TIZEN_AUTHOR_KEY_PW }}
+        run: |
+          TIZEN="$GITHUB_WORKSPACE/tizen-studio/tools/ide/bin/tizen"
+          mkdir -p "$GITHUB_WORKSPACE/author" "$GITHUB_WORKSPACE/tizen-studio-data/profile"
+          if [ -n "$KEY" ]; then
+            echo "$KEY" | base64 -d > "$GITHUB_WORKSPACE/author/termtv-author.p12"
+            PW="$KEY_PW"
+          else
+            echo "::warning::TIZEN_AUTHOR_KEY secret not set: signing with a temporary author certificate."
+            PW="termtv-temp-$(date +%s)"
+            "$TIZEN" certificate -a TermTV -p "$PW" -n "TermTV" -o "TermTV" -f termtv-author
+            find "$HOME" "$GITHUB_WORKSPACE" -name 'termtv-author.p12' -not -path "$GITHUB_WORKSPACE/author/*" -exec cp {} "$GITHUB_WORKSPACE/author/termtv-author.p12" \; -quit
+          fi
+          test -s "$GITHUB_WORKSPACE/author/termtv-author.p12"
+          PROFILES="$GITHUB_WORKSPACE/tizen-studio-data/profile/profiles.xml"
+          sed -e "s|\$WS|$GITHUB_WORKSPACE|g" -e "s|\$KEY_PW|$PW|g" .github/tizen/profiles.xml > "$PROFILES"
+          "$TIZEN" cli-config "profiles.path=$PROFILES"
+
+      - name: Package
+        run: |
+          mkdir -p build
+          expect -c "set timeout -1; spawn $GITHUB_WORKSPACE/tizen-studio/tools/ide/bin/tizen package -t wgt -s TermTV -o build -- dist; expect eof"
+          WGT=$(ls build/*.wgt | head -1)
+          test -n "$WGT"
+          mv "$WGT" build/TermTV.wgt
+          ls -la build
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}-dev', github.run_number) }}
+          prerelease: true
+          generate_release_notes: true
+          files: build/TermTV.wgt
