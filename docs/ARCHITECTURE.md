@@ -125,15 +125,17 @@ throttling in the browser with 100k titles: 1-30 ms per key press.
 | `kv/sources` | configured sources (credentials stay on the TV) |
 | `kv/profiles`, `kv/app` | profiles, global settings (language, parental PIN, guide length) |
 | `kv/profile:<id>` | favorites, lists, history, resume points, category choices, locks, settings |
-| `library/<sourceId>#meta`, `#0`, `#1`... | categories + items (+ M3U episodes), compact and chunked (below) |
-| `epg/<sourceId>#meta`, `#0`... | programmes in the window, same format |
+| `wgt-private/library-<sourceId>.bin` (TV) or `library/<sourceId>#meta`, `#0`, `#1`... | categories + items (+ M3U episodes), compact and chunked (below) |
+| `wgt-private/epg-<sourceId>.bin` (TV) or `epg/<sourceId>#meta`, `#0`... | programmes in the window, same format |
 
 The IndexedDB of 2017 TVs refuses one huge record, so caches use `workers/cache-codec.ts`: fields that can
 be rebuilt (`key`, `sourceId`, `kind`, the category key prefix) are dropped, the rest is JSON, gzipped with
 fflate and split into 1 MB `ArrayBuffer` chunks, each written in its own transaction; the `#meta` record is
-written last so a half-written cache is never read. The worker only compresses and decompresses: IndexedDB
-is read and written from the main thread (`state/cache.ts`), because IndexedDB inside workers is unreliable on
-2017 TVs. A TV that refuses `ArrayBuffer` values gets the chunks as strings. Settings → About shows whether
+written last so a half-written cache is never read. The worker only compresses and decompresses; the main
+thread stores (`state/cache.ts`). **On a TV the cache is a file** in the app's private folder
+(`platform/filestore.ts`, `wgt-private/library-<source>.bin`): IndexedDB's quota on 2017 TVs is only a few MB
+(QuotaExceededError). IndexedDB is the desktop path and the fallback; a TV that refuses `ArrayBuffer` values
+gets the chunks as strings. Settings → About shows whether
 each source's library was saved or loaded from the cache, or why saving failed. 100k titles: 26 MB of JSON become under 2 MB.
 
 **Keeping the UI thread light.** Anything that touches every title runs once per library or settings change,

@@ -1,8 +1,11 @@
-// Library and guide caches in IndexedDB, written from the main thread (the worker compresses).
+// Library and guide caches, written from the main thread (the worker compresses).
+// On a TV they are files in the app's private folder: IndexedDB's quota there is only a few MB.
+// In a desktop browser, and as a fallback, they go to IndexedDB:
 // Format (see workers/cache-codec.ts): `<key>#0`, `<key>#1`... 1 MB chunks, then `<key>#meta`,
 // written last so a half-written cache is never read.
 
-import { dbDelete, dbGet, dbPut } from '@/platform/db';
+import { dbDelete, dbGet, dbKeys, dbPut } from '@/platform/db';
+import { deleteFile, fileStoreAvailable, readFile, writeFile } from '@/platform/filestore';
 import { FORMAT, type CacheMeta } from '@/workers/cache-codec';
 import { createStore } from './store';
 
@@ -37,8 +40,29 @@ function fromStr(s: string): ArrayBuffer {
   return u.buffer;
 }
 
+const fileName = (store: CacheStore, key: string) => `${store}-${key}.bin`;
+/** Small IndexedDB record describing a file cache (for Settings > About). */
+const fileMetaKey = (store: CacheStore, key: string) => `cachefile:${store}:${key}`;
+
 export async function saveCache(store: CacheStore, key: string, chunks: ArrayBuffer[]): Promise<void> {
   if (!chunks.length) return;
+  let bytes = 0;
+  for (const c of chunks) bytes += c.byteLength;
+  if (fileStoreAvailable()) {
+    try {
+      // Free what earlier versions left in IndexedDB first: it shares the quota with settings.
+      await deleteIdbCache(store, key);
+      await writeFile(fileName(store, key), chunks);
+      const back = await readFile(fileName(store, key));
+      if (!back || back.byteLength !== bytes) throw new Error('Saved file could not be read back');
+      await dbPut('kv', fileMetaKey(store, key), { bytes, savedAt: Date.now() }).catch(() => undefined);
+      note(store, key, { ok: true, bytes, at: Date.now(), error: undefined, loaded: false });
+      return;
+    } catch (e) {
+      console.warn('file cache failed, trying IndexedDB', e);
+      await deleteFile(fileName(store, key));
+    }
+  }
   try {
     const old = await dbGet<CacheMeta>(store, metaKey(key)).catch(() => undefined);
     await dbDelete(store, metaKey(key));
@@ -50,8 +74,6 @@ export async function saveCache(store: CacheStore, key: string, chunks: ArrayBuf
       asText = true;
     }
     for (let i = asText ? 0 : 1; i < chunks.length; i++) await dbPut(store, chunkKey(key, i), asText ? toStr(chunks[i]) : chunks[i]);
-    let bytes = 0;
-    for (const c of chunks) bytes += c.byteLength;
     const meta: CacheMeta = { format: FORMAT, chunks: chunks.length, bytes, savedAt: Date.now(), text: asText || undefined };
     await dbPut(store, metaKey(key), meta);
     // Read it back: some TVs report success and keep nothing.
@@ -60,8 +82,10 @@ export async function saveCache(store: CacheStore, key: string, chunks: ArrayBuf
     if (old) for (let i = chunks.length; i < old.chunks; i++) await dbDelete(store, chunkKey(key, i)).catch(() => undefined);
     // The one-record format from before 0.1.7.
     await dbDelete(store, key).catch(() => undefined);
-    note(store, key, { ok: true, bytes, at: Date.now(), error: undefined });
+    note(store, key, { ok: true, bytes, at: Date.now(), error: undefined, loaded: false });
   } catch (e) {
+    // Don't leave half a cache behind: it would fill the quota that settings need.
+    await deleteIdbCache(store, key);
     const msg = e instanceof Error ? e.message : String(e);
     console.warn('cache save failed', store, key, msg);
     note(store, key, { ok: false, at: Date.now(), error: msg });
@@ -70,6 +94,18 @@ export async function saveCache(store: CacheStore, key: string, chunks: ArrayBuf
 
 /** The stored chunks, or undefined when there is no complete cache. */
 export async function loadCache(store: CacheStore, key: string): Promise<ArrayBuffer[] | undefined> {
+  if (fileStoreAvailable()) {
+    try {
+      const buf = await readFile(fileName(store, key));
+      if (buf && buf.byteLength) {
+        const m = await dbGet<{ bytes: number; savedAt: number }>('kv', fileMetaKey(store, key)).catch(() => undefined);
+        note(store, key, { ok: true, bytes: buf.byteLength, at: m ? m.savedAt : Date.now(), loaded: true });
+        return [buf];
+      }
+    } catch (e) {
+      note(store, key, { ok: false, at: Date.now(), error: e instanceof Error ? e.message : String(e) });
+    }
+  }
   try {
     const meta = await dbGet<CacheMeta>(store, metaKey(key));
     if (!meta || meta.format !== FORMAT) return undefined;
@@ -88,8 +124,13 @@ export async function loadCache(store: CacheStore, key: string): Promise<ArrayBu
 }
 
 export async function deleteCache(store: CacheStore, key: string): Promise<void> {
-  const meta = await dbGet<CacheMeta>(store, metaKey(key)).catch(() => undefined);
-  await dbDelete(store, metaKey(key)).catch(() => undefined);
-  if (meta) for (let i = 0; i < meta.chunks; i++) await dbDelete(store, chunkKey(key, i)).catch(() => undefined);
-  await dbDelete(store, key).catch(() => undefined);
+  await deleteFile(fileName(store, key));
+  await dbDelete('kv', fileMetaKey(store, key)).catch(() => undefined);
+  await deleteIdbCache(store, key);
+}
+
+/** Every record of this cache, including chunks of a save that failed halfway (no meta). */
+async function deleteIdbCache(store: CacheStore, key: string): Promise<void> {
+  const keys = await dbKeys(store).catch(() => [] as string[]);
+  for (const k of keys) if (k === key || k.indexOf(key + '#') === 0) await dbDelete(store, k).catch(() => undefined);
 }
