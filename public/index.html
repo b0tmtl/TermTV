@@ -8,7 +8,42 @@
   <!-- Samsung TV product APIs (webapis.avplay, productinfo). Absent in a desktop browser, which is fine. -->
   <script src="$WEBAPIS/webapis/webapis.js"></script>
 </head>
-<body>
+<body style="background:#0c131d">
+  <!-- Plain HTML/ES5 on purpose: visible even if the app bundle fails to start on an old TV. -->
+  <div id="splash" style="position:fixed;left:0;top:0;width:100%;height:100%;background:#0c131d;color:#3ea6ff;font-family:monospace;font-size:40px;z-index:1000">
+    <div style="position:absolute;left:160px;top:420px">&gt;_ TermTV <span style="color:#7d91ab">loading...</span></div>
+    <pre id="boot-error" style="position:absolute;left:160px;top:520px;right:160px;color:#ff6b6b;font-size:22px;white-space:pre-wrap"></pre>
+  </div>
+  <script>
+    (function () {
+      var sp = document.getElementById('splash');
+      var el = document.getElementById('boot-error');
+      function show(msg) {
+        // The app removes the splash once it runs; bring it back to show later errors.
+        if (!sp.parentNode) document.body.appendChild(sp);
+        el.textContent += msg + '\n';
+        if (el.textContent.indexOf('Browser:') < 0) el.textContent += 'Browser: ' + navigator.userAgent + '\n(Report this on GitHub. Press Back or Exit to close.)\n';
+      }
+      window.__termtvBootError = show;
+      window.onerror = function (msg, src, line, col, err) {
+        show('Error: ' + msg + ' (' + String(src).split('/').pop() + ':' + line + ':' + col + ')' + (err && err.stack ? '\n' + err.stack.split('\n').slice(0, 4).join('\n') : ''));
+      };
+      window.addEventListener('unhandledrejection', function (e) {
+        var r = e && e.reason;
+        show('Unhandled: ' + (r && (r.stack || r.message) || r));
+      });
+      document.addEventListener('keydown', function (e) {
+        if (e.keyCode === 10009 && sp.parentNode && el.textContent) {
+          try { tizen.application.getCurrentApplication().exit(); } catch (x) {}
+        }
+      });
+      setTimeout(function () {
+        if (sp.parentNode && !el.textContent) {
+          show('Still loading after 20 s: the app did not start.');
+        }
+      }, 20000);
+    })();
+  </script>
   <div id="app"></div>
   <script src="js/app.js"></script>
 </body>
