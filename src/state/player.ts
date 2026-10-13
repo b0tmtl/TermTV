@@ -107,6 +107,7 @@ const events = {
 
 function getEngine(): PlayerEngine {
   const want = user.get().data.settings.playerEngine === 'native' && avplayAvailable() ? 'native' : 'html5';
+  AvPlayEngine.minimalSurface = user.get().data.settings.videoSurface !== 'full';
   if (engine && engineKind === want) return engine;
   if (engine) engine.destroy();
   engine = want === 'native' ? new AvPlayEngine(events) : new Html5Engine(events);

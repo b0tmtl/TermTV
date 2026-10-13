@@ -276,6 +276,14 @@ function PlayerPane() {
         value={s.playerEngine === 'native' ? t('settings.engineNative') : t('settings.engineHtml5')}
         onEnter={() => updateSettings({ playerEngine: s.playerEngine === 'native' ? 'html5' : 'native' })}
       />
+      {s.playerEngine === 'native' && (
+        <Setting
+          label={t('settings.videoSurface')}
+          desc={t('settings.videoSurfaceDesc')}
+          value={s.videoSurface === 'full' ? t('settings.videoSurfaceFull') : t('settings.videoSurfaceMinimal')}
+          onEnter={() => updateSettings({ videoSurface: s.videoSurface === 'full' ? 'minimal' : 'full' })}
+        />
+      )}
       <Setting
         label={t('settings.liveFormat')}
         desc={t('settings.liveFormatDesc')}

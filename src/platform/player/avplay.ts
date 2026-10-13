@@ -31,6 +31,13 @@ function parseExtra(extra: unknown): { language: string; label: string } {
 }
 
 export class AvPlayEngine implements PlayerEngine {
+  /**
+   * Keep the AVPlay <object> at 1x1 px. The video's position comes from setDisplayRect, not from
+   * the element; at full size some TVs draw a small placeholder mark at its center, which showed as
+   * a white dot in the middle of the video. Settings > Player can turn this off (if a firmware
+   * needs the element at the video's size).
+   */
+  static minimalSurface = true;
   readonly name = 'AVPlay';
   private av = webapis.avplay;
   private obj: HTMLObjectElement;
@@ -208,11 +215,12 @@ export class AvPlayEngine implements PlayerEngine {
   private applyRect() {
     const r = this.rect || { x: 0, y: 0, w: 1920, h: 1080 };
     const s = this.obj.style;
+    const tiny = AvPlayEngine.minimalSurface;
     s.position = 'fixed';
-    s.left = r.x + 'px';
-    s.top = r.y + 'px';
-    s.width = r.w + 'px';
-    s.height = r.h + 'px';
+    s.left = (tiny ? 0 : r.x) + 'px';
+    s.top = (tiny ? 0 : r.y) + 'px';
+    s.width = (tiny ? 1 : r.w) + 'px';
+    s.height = (tiny ? 1 : r.h) + 'px';
     s.zIndex = '0';
     try {
       // AVPlay uses a 1920x1080 coordinate space regardless of the UI resolution.

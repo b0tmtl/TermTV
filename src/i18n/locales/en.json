@@ -387,7 +387,11 @@
     "buffer_low": "Low · 2 s (fastest zapping)",
     "buffer_medium": "Medium · 5 s",
     "buffer_high": "High · 10 s",
-    "buffer_max": "Maximum · 20 s (very unstable streams)"
+    "buffer_max": "Maximum · 20 s (very unstable streams)",
+    "videoSurface": "Video layer (Samsung player)",
+    "videoSurfaceDesc": "\"Hidden\" avoids a white dot in the middle of the video on some TVs. Switch to \"Full screen\" only if the video stays black",
+    "videoSurfaceMinimal": "Hidden (recommended)",
+    "videoSurfaceFull": "Full screen"
   },
   "theme": {
     "midnight": "Midnight Shell",

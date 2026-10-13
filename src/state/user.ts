@@ -35,6 +35,8 @@ export interface ProfileSettings {
   clock24h: boolean;
   /** Player buffer: how much is loaded before playing (see BUFFER_SECONDS). */
   buffer: BufferLevel;
+  /** AVPlay element size: 'minimal' (1 px, no center mark) or 'full' (some firmware may need it). */
+  videoSurface?: 'minimal' | 'full';
 }
 
 export interface FavoriteList {
