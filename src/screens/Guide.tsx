@@ -12,7 +12,7 @@ import { hasGuide, libraryState, programmes } from '@/state/library';
 import { useStore } from '@/state/store';
 import { user } from '@/state/user';
 import { Img, Prompt } from '@/ui/Cards';
-import { favoriteToggle, startPlayback, unlockIfNeeded } from '@/ui/actions';
+import { favoriteToggle, startPlayback, unlockIfNeeded, favoriteCategoryToggle } from '@/ui/actions';
 import { toast } from '@/ui/ui-state';
 import { channelsFor, liveCategories } from './Live';
 
@@ -52,7 +52,7 @@ export function GuideScreen() {
   const epgVersion = useStore(libraryState, (s) => s.epgVersion);
   const data = useStore(user, (s) => s.data);
   const clock24 = data.settings.clock24h;
-  const tabs = useMemo(() => liveCategories(), [data.categories.live, data.favorites, data.locked, libraryState.get().version]);
+  const tabs = useMemo(() => liveCategories(), [data.categories.live, data.favoriteCategories, data.favorites, data.locked, libraryState.get().version]);
   const [tab, setTab] = useState(0);
   const tabId = tabs[Math.min(tab, tabs.length - 1)] ? tabs[Math.min(tab, tabs.length - 1)].id : '';
   const channels = useMemo(() => channelsFor(tabId), [tabId, data.categories.live.itemSort, libraryState.get().version]);
@@ -232,6 +232,7 @@ export function GuideScreen() {
                   setTop(0);
                 },
                 onFocus: () => setGridFocused(false),
+                onKey: (k) => (k.key === 'red' && tb.view ? (favoriteCategoryToggle(tb.view), true) : false),
               })}
             >
               {tb.icon && <Glyph n={tb.icon} gap />}

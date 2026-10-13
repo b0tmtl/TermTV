@@ -1,11 +1,12 @@
 // What happens when the user opens or long-presses an item, shared by every screen.
 
+import type { CategoryView } from '@/core/categories';
 import type { Channel, Item } from '@/core/models';
 import { t } from '@/i18n';
 import { navigate } from '@/navigation/router';
-import { isItemLocked, viewOfItem } from '@/state/library';
+import { isFavoriteCategory, isItemLocked, viewOfItem } from '@/state/library';
 import { play, type PlaybackTarget } from '@/state/player';
-import { addToList, createList, isFavorite, toggleFavorite, user } from '@/state/user';
+import { addToList, createList, isFavorite, toggleFavorite, toggleFavoriteCategory, user } from '@/state/user';
 import { promptPin, promptText, showMenu, type MenuOption } from './Dialog';
 import { toast } from './ui-state';
 
@@ -93,4 +94,14 @@ export function itemMenu(item: Item, extra: MenuOption[] = []): void {
     });
   }
   showMenu(item.name, options.concat(extra));
+}
+
+/** Stars or unstars a category (shown first, with a star, in its section and the guide). */
+export function favoriteCategoryToggle(view: CategoryView): void {
+  const on = toggleFavoriteCategory(view.kind, view);
+  toast(on ? t('categories.favAdded', { name: view.name }) : t('categories.favRemoved', { name: view.name }));
+}
+
+export function favoriteCategoryOption(view: CategoryView): MenuOption {
+  return { label: isFavoriteCategory(view) ? t('categories.favRemove') : t('categories.favAdd'), onSelect: () => favoriteCategoryToggle(view) };
 }

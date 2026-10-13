@@ -4,7 +4,7 @@
 // the store only carries status and version counters that components subscribe to.
 
 import {
-  buildCategoryViews, dropHiddenCategories, isHidden, markKnown, sortItems, visibleCategories, type CategoryView, type ItemSort,
+  anyIdMatches, buildCategoryViews, dropHiddenCategories, idMatches, isHidden, markKnown, sortItems, visibleCategories, type CategoryView, type ItemSort,
 } from '@/core/categories';
 import type { Category, Channel, Episode, Item, MediaKind, Movie, Programme, Series, SeriesDetails, MovieDetails, Source } from '@/core/models';
 import { ALL_KINDS, DocKind, type SearchResult } from '@/core/search/engine';
@@ -316,7 +316,27 @@ function computeBrowseViews(kind: MediaKind): CategoryView[] {
   const s = user.get();
   const prefs = s.data.categories[kind];
   const hideLocked = !!s.app.parentalPin && s.app.lockMode === 'hide' && !s.unlocked;
-  return visibleCategories(allViews(kind), prefs, { watchCount: (v) => watchCount(v) }).filter((v) => !(hideLocked && isViewLocked(v)));
+  const views = visibleCategories(allViews(kind), prefs, { watchCount: (v) => watchCount(v) }).filter((v) => !(hideLocked && isViewLocked(v)));
+  // Favorite categories first, in the order they were added.
+  const favs = (s.data.favoriteCategories && s.data.favoriteCategories[kind]) || [];
+  if (!favs.length) return views;
+  const rank = (v: CategoryView) => {
+    for (let i = 0; i < favs.length; i++) if (idMatches(favs[i], v)) return i;
+    return -1;
+  };
+  const top: Array<{ v: CategoryView; r: number }> = [];
+  const rest: CategoryView[] = [];
+  for (const v of views) {
+    const r = rank(v);
+    if (r >= 0) top.push({ v, r });
+    else rest.push(v);
+  }
+  return top.sort((a, b) => a.r - b.r).map((x) => x.v).concat(rest);
+}
+
+export function isFavoriteCategory(view: CategoryView): boolean {
+  const favs = user.get().data.favoriteCategories;
+  return !!favs && anyIdMatches(favs[view.kind] || [], view);
 }
 
 function watchCount(view: CategoryView): number {

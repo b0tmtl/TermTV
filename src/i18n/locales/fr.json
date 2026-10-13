@@ -261,7 +261,11 @@
     "hintToggle": "afficher / masquer",
     "hintMove": "Déplacer",
     "hintLock": "Verrouiller",
-    "reloading": "Chargement des catégories réaffichées…"
+    "reloading": "Chargement des catégories réaffichées…",
+    "favAdd": "Ajouter la catégorie aux favoris",
+    "favRemove": "Retirer la catégorie des favoris",
+    "favAdded": "{name} est maintenant une catégorie favorite",
+    "favRemoved": "{name} retirée des catégories favorites"
   },
   "parental": {
     "intro": "Verrouillez des catégories avec un NIP. Selon le mode, elles sont masquées, ou affichées et protégées par le NIP.",

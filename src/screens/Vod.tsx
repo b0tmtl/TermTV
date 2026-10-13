@@ -5,12 +5,12 @@ import type { Item } from '@/core/models';
 import { t } from '@/i18n';
 import { focusById, focusable } from '@/navigation/focus';
 import { navigate, updateRoute } from '@/navigation/router';
-import { allBrowseItems, allViews, browseViews, countInView, invalidateItemCache, isViewLocked, itemByKey, itemsInView, libraryState, recentlyAdded } from '@/state/library';
+import { allBrowseItems, allViews, browseViews, countInView, invalidateItemCache, isFavoriteCategory, isViewLocked, itemByKey, itemsInView, libraryState, recentlyAdded } from '@/state/library';
 import { useStore } from '@/state/store';
 import { updateCategoryPrefs, updateData, user } from '@/state/user';
 import { PosterCard, Prompt } from '@/ui/Cards';
 import { showMenu, type MenuOption } from '@/ui/Dialog';
-import { askPin, favoriteToggle, itemMenu, openItem } from '@/ui/actions';
+import { askPin, favoriteCategoryOption, favoriteCategoryToggle, favoriteToggle, itemMenu, openItem } from '@/ui/actions';
 import { VGrid } from '@/ui/VGrid';
 import { toast } from '@/ui/ui-state';
 
@@ -45,11 +45,11 @@ export function VodScreen({ kind, categoryId }: { kind: 'movie' | 'series'; cate
     const entries = views.map((v) => {
       const count = countInView(v);
       total += count;
-      return { id: v.id, name: v.name, view: v, count };
+      return { id: v.id, name: v.name, view: v, count, icon: isFavoriteCategory(v) ? 'star' : undefined };
     });
     out.push({ id: ALL, name: t('vod.all'), count: total });
     return out.concat(entries);
-  }, [kind, data.categories[kind], data.favorites, data.history, data.locked, unlocked, libraryState.get().version]);
+  }, [kind, data.categories[kind], data.favoriteCategories, data.favorites, data.history, data.locked, unlocked, libraryState.get().version]);
 
   // Kept by id: Favorites / Continue rows come and go and would shift indexes.
   const [catId, setCatId] = useState(categoryId && cats.some((c) => c.id === categoryId) ? categoryId : cats[0] ? cats[0].id : '');
@@ -89,6 +89,7 @@ export function VodScreen({ kind, categoryId }: { kind: 'movie' | 'series'; cate
     const v = c.view;
     if (!v) return;
     const options: MenuOption[] = [
+      favoriteCategoryOption(v),
       {
         label: t('categories.hide'),
         onSelect: () => {
@@ -149,6 +150,7 @@ export function VodScreen({ kind, categoryId }: { kind: 'movie' | 'series'; cate
           }}
           onKey={(k, i) => {
             if (k.key === 'yellow' || k.key === 'menu') return catMenu(cats[i]), true;
+            if (k.key === 'red') return cats[i] && cats[i].view ? (favoriteCategoryToggle(cats[i].view!), true) : false;
             if (k.key === 'green') return sortMenu(), true;
             if (k.key === 'right' || k.key === 'enter') {
               clearTimeout(timer.current);

@@ -16,7 +16,7 @@ import { useStore } from '@/state/store';
 import { updateCategoryPrefs, updateData, user } from '@/state/user';
 import { Prompt } from '@/ui/Cards';
 import { promptText, showMenu } from '@/ui/Dialog';
-import { askPin } from '@/ui/actions';
+import { askPin, favoriteCategoryOption } from '@/ui/actions';
 import { VGrid } from '@/ui/VGrid';
 import { toast } from '@/ui/ui-state';
 
@@ -70,6 +70,7 @@ export function CategoriesScreen({ kind }: { kind: MediaKind }) {
 
   const rowMenu = (v: CategoryView) =>
     showMenu(v.name, [
+      favoriteCategoryOption(v),
       { label: isHidden(v, prefs) ? t('categories.show') : t('categories.hide'), onSelect: () => toggle(v) },
       { label: t('categories.pickUp'), onSelect: () => (filter ? toast(t('categories.clearFilterToMove')) : setMoving(v.id)) },
       { label: t('categories.moveTop'), onSelect: () => move(v, 'top') },

@@ -7,14 +7,14 @@ import { formatTime, t } from '@/i18n';
 import { focusById, focusable } from '@/navigation/focus';
 import { navigate, updateRoute } from '@/navigation/router';
 import {
-  allBrowseItems, allViews, browseViews, countInView, fetchShortEpg, invalidateItemCache, isViewLocked, itemByKey, itemsInView, libraryState, nowNext,
+  allBrowseItems, allViews, browseViews, countInView, fetchShortEpg, invalidateItemCache, isViewLocked, itemByKey, itemsInView, libraryState, nowNext, isFavoriteCategory,
 } from '@/state/library';
 import { play, player, setWindow, stop } from '@/state/player';
 import { useStore } from '@/state/store';
 import { updateCategoryPrefs, updateData, user } from '@/state/user';
 import { Img, Prompt } from '@/ui/Cards';
 import { showMenu, type MenuOption } from '@/ui/Dialog';
-import { askPin, favoriteToggle, itemMenu, unlockIfNeeded } from '@/ui/actions';
+import { askPin, favoriteToggle, itemMenu, unlockIfNeeded, favoriteCategoryOption, favoriteCategoryToggle } from '@/ui/actions';
 import { VGrid } from '@/ui/VGrid';
 import { LoadingDots } from '@/ui/LoadingDots';
 import { toast } from '@/ui/ui-state';
@@ -44,7 +44,7 @@ export function liveCategories(): CatEntry[] {
   const entries = views.map((v) => {
     const count = countInView(v);
     total += count;
-    return { id: v.id, name: v.name, view: v, count };
+    return { id: v.id, name: v.name, view: v, count, icon: isFavoriteCategory(v) ? 'star' : undefined };
   });
   out.push({ id: ALL_ID, name: t('live.all'), count: total });
   return out.concat(entries);
@@ -72,7 +72,7 @@ export function LiveScreen({ categoryId, channelKey }: { categoryId?: string; ch
   const playStatus = useStore(player, (s) => s.status);
   const clock24 = data.settings.clock24h;
 
-  const cats = useMemo(() => liveCategories(), [data.categories.live, data.favorites, data.history, data.locked, unlocked, libraryState.get().version]);
+  const cats = useMemo(() => liveCategories(), [data.categories.live, data.favoriteCategories, data.favorites, data.history, data.locked, unlocked, libraryState.get().version]);
   // The selection is kept by id: pseudo-categories (Favorites, Recent) come and go and shift indexes.
   const [catId, setCatId] = useState(categoryId && cats.some((c) => c.id === categoryId) ? categoryId : cats[0] ? cats[0].id : '');
   const found = cats.findIndex((c) => c.id === catId);
@@ -147,6 +147,7 @@ export function LiveScreen({ categoryId, channelKey }: { categoryId?: string; ch
     const v = c.view;
     if (!v) return;
     const options: MenuOption[] = [
+      favoriteCategoryOption(v),
       {
         label: t('categories.hide'),
         onSelect: () => {
@@ -210,6 +211,7 @@ export function LiveScreen({ categoryId, channelKey }: { categoryId?: string; ch
           }}
           onKey={(k, i) => {
             if (k.key === 'yellow' || k.key === 'menu') return catMenu(cats[i]), true;
+            if (k.key === 'red') return cats[i] && cats[i].view ? (favoriteCategoryToggle(cats[i].view!), true) : false;
             if (k.key === 'right' || k.key === 'enter') {
               clearTimeout(catTimer.current);
               if (i !== catIdx) {

@@ -1,7 +1,7 @@
 // Sources, profiles and per-profile data (favorites, lists, history, category choices, settings).
 // Everything lives on the TV in IndexedDB; Backup / Restore exports it as one JSON file.
 
-import { defaultCategoryPrefs, type CategoryPrefs } from '@/core/categories';
+import { anyIdMatches, defaultCategoryPrefs, idMatches, type CategoryPrefs, type CategoryView } from '@/core/categories';
 import type { MediaKind, Source } from '@/core/models';
 import { dbGet, dbKeys, dbPut, rebuildDatabase } from '@/platform/db';
 import { createStore } from './store';
@@ -76,6 +76,8 @@ export interface ProfileData {
   categories: Record<MediaKind, CategoryPrefs>;
   /** Category view ids locked by parental control. */
   locked: string[];
+  /** Favorite categories per section (view ids), shown first in category lists. */
+  favoriteCategories: Record<MediaKind, string[]>;
   settings: ProfileSettings;
 }
 
@@ -122,6 +124,7 @@ export function defaultProfileData(): ProfileData {
     recentSearches: [],
     categories: { live: defaultCategoryPrefs('live'), movie: defaultCategoryPrefs('movie'), series: defaultCategoryPrefs('series') },
     locked: [],
+    favoriteCategories: { live: [], movie: [], series: [] },
     settings: defaultSettings(),
   };
 }
@@ -273,6 +276,22 @@ export function activeProfile(): Profile | undefined {
 
 export function isFavorite(key: string): boolean {
   return user.get().data.favorites.indexOf(key) >= 0;
+}
+
+/** Adds or removes a favorite category; returns true when it is now a favorite. */
+export function toggleFavoriteCategory(kind: MediaKind, view: CategoryView): boolean {
+  const list = user.get().data.favoriteCategories[kind] || [];
+  const on = !anyIdMatches(list, view);
+  updateData((d) => {
+    const cur = d.favoriteCategories[kind] || [];
+    return {
+      favoriteCategories: {
+        ...d.favoriteCategories,
+        [kind]: on ? cur.concat([view.id]) : cur.filter((id) => !idMatches(id, view)),
+      },
+    };
+  });
+  return on;
 }
 
 export function toggleFavorite(key: string): boolean {

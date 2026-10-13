@@ -261,7 +261,11 @@
     "hintToggle": "show / hide",
     "hintMove": "Move",
     "hintLock": "Lock",
-    "reloading": "Loading the categories you showed again…"
+    "reloading": "Loading the categories you showed again…",
+    "favAdd": "Add category to favorites",
+    "favRemove": "Remove category from favorites",
+    "favAdded": "{name} is now a favorite category",
+    "favRemoved": "{name} removed from favorite categories"
   },
   "parental": {
     "intro": "Lock categories with a PIN. Locked categories are hidden, or shown and PIN-protected, depending on the mode.",
