@@ -280,13 +280,16 @@ html.tv .card .art { transition: none; }
 .player-ui .clock { position: absolute; right: 70px; top: 44px; font-size: 30px; color: #fff; }
 .player-ui .bar { height: 10px; background: rgba(255, 255, 255, .25); border-radius: 5px; margin: 18px 0 10px; position: relative; }
 .player-ui .bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--accent); border-radius: 5px; }
+#av-player { outline: none; }
 .player-ui .bar .scrub { position: absolute; top: -9px; width: 6px; height: 28px; margin-left: -3px; background: #fff; border-radius: 3px; }
-.player-ui .bar .scrub-label { position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); white-space: nowrap; background: rgba(0, 0, 0, .8); color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 26px; }
+.player-ui .bar .scrub-label { position: absolute; bottom: 36px; left: -200px; width: 400px; text-align: center; white-space: nowrap; background: rgba(0, 0, 0, .8); color: #fff; padding: 8px 16px; border-radius: 8px; font-size: 26px; }
 .player-ui .times { display: flex; font-size: 22px; color: #c7d2e0; }
 .player-ui .controls { margin-top: 24px; display: flex; align-items: center; }
 .player-ui .controls .btn { background: rgba(0, 0, 0, .55); border-color: rgba(255, 255, 255, .25); color: #fff; }
 .player-ui .controls .btn[data-focused] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
-.player-ui .status { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); background: rgba(0, 0, 0, .75); padding: 24px 40px; border-radius: 12px; font-size: 28px; color: #fff; text-align: center; }
+/* No transform anywhere over the video: on TVs a transformed element gets its own layer, and pieces
+   of removed layers can stay on screen over AVPlay's video (the "white dot"). Fixed sizes instead. */
+.player-ui .status { position: absolute; left: 50%; top: 50%; width: 760px; margin-left: -380px; margin-top: -70px; box-sizing: border-box; background: rgba(0, 0, 0, .75); padding: 24px 40px; border-radius: 12px; font-size: 28px; color: #fff; text-align: center; }
 .player-ui .zap { position: absolute; right: 70px; top: 120px; font-size: 64px; color: #fff; background: rgba(0, 0, 0, .7); padding: 10px 30px; border-radius: 10px; font-weight: 700; }
 .spinner { display: inline-block; width: 46px; height: 46px; border: 5px solid rgba(255, 255, 255, .25); border-top-color: var(--accent); border-radius: 50%; animation: spin .9s linear infinite; vertical-align: middle; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -315,7 +318,8 @@ html.tv .card .art { transition: none; }
 .menu-item[data-focused] { background: var(--accent); color: var(--accent-ink); }
 .menu-item[data-focused] .check, .menu-item[data-focused] .hint { color: var(--accent-ink); }
 
-.toast { position: fixed; left: 50%; bottom: 60px; transform: translateX(-50%); background: var(--panel2); border: 2px solid var(--accent); color: var(--text); padding: 18px 34px; border-radius: 10px; z-index: 200; font-size: 24px; white-space: nowrap; }
+/* Centered without transform (see .player-ui .status): an absolutely placed table with auto margins. */
+.toast { position: fixed; left: 0; right: 0; margin: 0 auto; display: table; bottom: 60px; background: var(--panel2); border: 2px solid var(--accent); color: var(--text); padding: 18px 34px; border-radius: 10px; z-index: 200; font-size: 24px; white-space: nowrap; }
 
 /* ---------- On-screen keyboard ---------- */
 .osk { display: inline-block; }

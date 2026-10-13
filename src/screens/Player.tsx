@@ -27,9 +27,13 @@ export function PlayerScreen() {
     if (st.status !== 'playing') return;
     const el = document.querySelector('.player-ui') as HTMLElement | null;
     if (!el) return;
-    el.style.opacity = '0.99';
-    const id = requestAnimationFrame(() => (el.style.opacity = ''));
-    return () => cancelAnimationFrame(id);
+    // Hide and show again: a full repaint without creating a layer (opacity < 1 would).
+    el.style.visibility = 'hidden';
+    const id = requestAnimationFrame(() => (el.style.visibility = ''));
+    return () => {
+      cancelAnimationFrame(id);
+      el.style.visibility = '';
+    };
   }, [st.status]);
   const settings = useStore(user, (s) => s.data.settings);
   const [controls, setControls] = useState(true);
@@ -275,7 +279,7 @@ export function PlayerScreen() {
                   <i style={{ width: Math.max(0, Math.min(1, progress)) * 100 + '%' }} />
                   {scrubAt !== null && (
                     <b class="scrub" style={{ left: scrubAt * 100 + '%' }}>
-                      <span class="scrub-label">
+                      <span class="scrub-label" style={{ left: scrubAt < 0.12 ? '-3px' : scrubAt > 0.88 ? '-394px' : '-197px' }}>
                         {formatDuration(st.scrub!)}
                         <span class="dim"> ({st.scrub! >= st.time ? '+' : '-'}{formatDuration(Math.abs(st.scrub! - st.time))})</span>
                       </span>

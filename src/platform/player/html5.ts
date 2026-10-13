@@ -52,6 +52,8 @@ export class Html5Engine implements PlayerEngine {
     }
     this.video = v;
     this.video.style.display = 'block';
+    const av = document.getElementById('av-player');
+    if (av) av.style.display = 'none';
     this.setRect(null);
     v.onwaiting = () => this.ev.status('buffering');
     v.onplaying = () => this.ev.status('playing');

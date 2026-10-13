@@ -51,6 +51,13 @@ export class AvPlayEngine implements PlayerEngine {
       document.body.insertBefore(obj, document.body.firstChild);
     }
     this.obj = obj;
+    // Never focusable, no outline: a focused <object> can get a focus mark drawn over the video.
+    obj.setAttribute('tabindex', '-1');
+    obj.style.outline = 'none';
+    obj.style.display = 'block';
+    // The HTML5 engine's <video> stays in the page: hide it so it can't show anything on top.
+    const html5 = document.getElementById('html5-player');
+    if (html5) html5.style.display = 'none';
     this.applyRect();
   }
 
@@ -295,5 +302,6 @@ export class AvPlayEngine implements PlayerEngine {
 
   destroy() {
     this.close();
+    this.obj.style.display = 'none';
   }
 }
