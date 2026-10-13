@@ -12,6 +12,7 @@ const ITEMS: Array<{ id: string; icon: string; label: string; route: Route }> = 
   { id: 'home', icon: 'home', label: 'nav.home', route: { name: 'home' } },
   { id: 'live', icon: 'live', label: 'nav.live', route: { name: 'live' } },
   { id: 'guide', icon: 'guide', label: 'nav.guide', route: { name: 'guide' } },
+  { id: 'sports', icon: 'sports', label: 'nav.sports', route: { name: 'sports' } },
   { id: 'movie', icon: 'movie', label: 'nav.movies', route: { name: 'vod', kind: 'movie' } },
   { id: 'series', icon: 'series', label: 'nav.series', route: { name: 'vod', kind: 'series' } },
   { id: 'search', icon: 'search', label: 'nav.search', route: { name: 'search' } },

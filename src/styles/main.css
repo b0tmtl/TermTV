@@ -390,3 +390,15 @@ html.tv .card .art { transition: none; }
 .color-key.red { background: #e53935; } .color-key.green { background: #43a047; } .color-key.yellow { background: #fdd835; } .color-key.blue { background: #1e88e5; }
 .hints { position: absolute; left: 56px; bottom: 18px; font-size: 20px; color: var(--dim); white-space: nowrap; background: var(--bg); padding: 6px 14px; border-radius: 8px; z-index: 3; }
 .qr { background: #fff; padding: 16px; display: inline-block; border-radius: 10px; }
+
+/* ---------- Sports ---------- */
+.match { display: flex; align-items: center; box-sizing: border-box; width: 1310px; height: 104px; margin-bottom: 14px; padding: 0 26px; border: 2px solid var(--line); border-radius: 10px; background: var(--panel); }
+.match[data-focused] { border-color: var(--accent); box-shadow: 0 0 0 4px var(--focus-glow); }
+.match .when { width: 230px; flex-shrink: 0; font-size: 26px; color: var(--dim); line-height: 100px; }
+.match .when.live { color: var(--bad); font-weight: 700; }
+.match .what { flex: 1; overflow: hidden; }
+.match .title { font-size: 30px; }
+.match .sub { font-size: 21px; color: var(--dim); margin-top: 4px; }
+.match-bar { height: 6px; background: var(--line); border-radius: 3px; margin-top: 8px; position: relative; }
+.match-bar i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--bad); border-radius: 3px; }
+.live-dot { color: var(--bad); font-weight: 700; }

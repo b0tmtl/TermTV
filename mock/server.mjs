@@ -60,7 +60,13 @@ const CHANNEL_NAMES = {
 const QUALITY = ['', ' HD', ' FHD', ' ᴴᴰ', ' 4K', ' HEVC'];
 const SHOWS = {
   News: ['Morning Report', 'World News Tonight', 'The Situation Room', 'Market Watch', 'Evening Edition', 'Newsroom Live', 'Global Update'],
-  Sports: ['Live: Premier League', 'Live: NBA Basketball', 'SportsCenter', 'Live: NHL Hockey', 'Live: Champions League', 'Golf Highlights', 'Live: NFL Football', 'Tennis: Masters'],
+  // Realistic match titles (EN / FR, separators "vs", "v", "@", "-", "contre"), so the Sports
+  // section can find, classify and group them; plus studio shows it must leave out.
+  Sports: [
+    'NHL: Canadiens vs Maple Leafs', 'Premier League: Arsenal v Chelsea', 'SportsCenter', 'NBA Basketball: Lakers @ Celtics',
+    'LNH : Canadiens contre Maple Leafs', 'Ligue 1: PSG - Marseille', 'NHL Highlights', 'NFL Football: Bills vs Chiefs',
+    'MLB: Blue Jays at Yankees', 'UFC Fight Night: Pantoja vs Asakura', 'Formula 1: Grand Prix du Mexique', 'Roland-Garros: Alcaraz vs Sinner',
+  ],
   Kids: ['Paw Patrol', 'SpongeBob SquarePants', 'Bluey', 'Peppa Pig', 'Teen Titans Go!', 'The Loud House'],
   default: ['The Big Bang Theory', 'Friends', 'Seinfeld', 'Law & Order: SVU', 'Chicago Fire', 'Movie: The Matrix', 'Documentary: Planet Earth', 'Late Night Show', 'Cooking With Love', 'House Hunters', 'Pawn Stars'],
 };

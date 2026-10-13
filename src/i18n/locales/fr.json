@@ -20,6 +20,7 @@
     "home": "Accueil",
     "live": "Télé en direct",
     "guide": "Guide télé",
+    "sports": "Sports",
     "movies": "Films",
     "series": "Séries",
     "search": "Recherche",
@@ -471,5 +472,35 @@
     "availableTitle": "TermTV {version} est disponible",
     "notesTitle": "Nouveautés de la version {version}",
     "howTo": "Pour mettre à jour : ouvrez TizenBrew, choisissez TizenBrew Installer, puis Install from GitHub et entrez b0tmtl/TermTV. Vos sources et paramètres sont conservés."
+  },
+  "sports": {
+    "liveNow": "EN DIRECT",
+    "tomorrow": "Demain {time}",
+    "onNow": "en ce moment",
+    "chooseChannel": "Choisissez une chaîne",
+    "startsAt": "Commence {when}. OK sur une chaîne la syntonise maintenant.",
+    "channels": {
+      "one": "{count} chaîne",
+      "other": "{count} chaînes"
+    },
+    "building": "Recherche des événements sportifs dans le guide…",
+    "empty": "Aucun match trouvé dans le guide pour ce sport.",
+    "noGuide": "Les sports viennent du guide télé, et il n'y a pas encore de guide. Vérifiez que vos sources ont un guide (Paramètres → Guide télé).",
+    "name": {
+      "all": "Tous les sports",
+      "hockey": "Hockey",
+      "soccer": "Soccer",
+      "football": "Football",
+      "basketball": "Basketball",
+      "baseball": "Baseball",
+      "tennis": "Tennis",
+      "fighting": "Sports de combat",
+      "motorsport": "Sports motorisés",
+      "golf": "Golf",
+      "rugby": "Rugby",
+      "cricket": "Cricket",
+      "cycling": "Cyclisme",
+      "others": "Autres sports"
+    }
   }
 }

@@ -122,6 +122,27 @@ exclusion mask pushed to the worker.
 **Performance** (unit test, desktop): 150k titles, query worst case ~25 ms, typical 3-12 ms. Under 4× CPU
 throttling in the browser with 100k titles: 1-30 ms per key press.
 
+## Sports
+
+`core/sports.ts` (pure, unit-tested) finds sport events in the guide; `state/sports.ts` builds the list in
+slices when the Sports screen opens (and again when the guide or library changes).
+
+1. **Is it a sport event?** The guide category says sport, or the channel is a sports channel (its
+   category or name: TSN, RDS, Sportsnet, ESPN, beIN, DAZN, Sky Sports...), or the title looks like a match
+   ("A vs B", "A v B", "A @ B", "A contre B"; "A - B", "A x B" only without those) or names an unmistakable
+   league (NHL, NBA, Premier League...). Studio shows, highlights, magazines, news and "Sports non-event"
+   entries are left out; without teams, the sport must be named in the title or category (descriptions
+   often just repeat the channel's name).
+2. **Which sport?** One regex holding every league and keyword of every sport, with a lookup table:
+   leagues score 10, words 3, weighted by where they appear (title > category > description > channel
+   category). "Football" alone is American football with NFL / CFL / NCAA context, soccer otherwise.
+   "World Cup" alone is a weak soccer word (skiing, rugby and cricket have one too).
+3. **Which match?** Sport + both team names (either order, club words like FC dropped), and start
+   times within 30 minutes: the same game on several channels (EN / FR, HD / 4K) is one match.
+
+Channels in hidden or locked categories are skipped. Results are memoized per title (guides repeat a
+lot); 100k guide entries classify in ~0.25 s on a desktop.
+
 ## Storage
 
 | Store | Content |

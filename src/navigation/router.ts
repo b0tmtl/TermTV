@@ -10,6 +10,7 @@ export type Route =
   | { name: 'home' }
   | { name: 'live'; categoryId?: string; channelKey?: string }
   | { name: 'guide' }
+  | { name: 'sports' }
   | { name: 'vod'; kind: 'movie' | 'series'; categoryId?: string }
   | { name: 'details'; key: string }
   | { name: 'search'; scope?: string; q?: string }

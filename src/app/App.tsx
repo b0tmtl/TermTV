@@ -19,6 +19,7 @@ import { LiveScreen } from '@/screens/Live';
 import { PlayerScreen } from '@/screens/Player';
 import { ProfilesScreen } from '@/screens/Profiles';
 import { SearchScreen } from '@/screens/Search';
+import { SportsScreen } from '@/screens/Sports';
 import { SettingsScreen } from '@/screens/Settings';
 import { AddSourceScreen, WelcomeScreen } from '@/screens/Sources';
 import { VodScreen } from '@/screens/Vod';
@@ -26,7 +27,7 @@ import { VodScreen } from '@/screens/Vod';
 const NO_SIDEBAR = ['profiles', 'welcome', 'addSource', 'player', 'details'];
 
 /** Screens that need the full library (while Home shows its snapshot). */
-const NEEDS_LIBRARY = ['live', 'guide', 'vod', 'search', 'categories', 'list'];
+const NEEDS_LIBRARY = ['live', 'guide', 'sports', 'vod', 'search', 'categories', 'list'];
 
 function LibraryLoading() {
   return (
@@ -48,6 +49,7 @@ function renderRoute(r: Route, partial?: boolean) {
     case 'home': return <HomeScreen />;
     case 'live': return <LiveScreen categoryId={r.categoryId} channelKey={r.channelKey} />;
     case 'guide': return <GuideScreen />;
+    case 'sports': return <SportsScreen />;
     case 'vod': return <VodScreen kind={r.kind} categoryId={r.categoryId} />;
     case 'details': return <DetailsScreen itemKey={r.key} />;
     case 'search': return <SearchScreen scope={r.scope} q={r.q} />;

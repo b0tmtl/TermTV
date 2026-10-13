@@ -20,6 +20,7 @@
     "home": "Home",
     "live": "Live TV",
     "guide": "TV Guide",
+    "sports": "Sports",
     "movies": "Movies",
     "series": "Series",
     "search": "Search",
@@ -471,5 +472,35 @@
     "availableTitle": "TermTV {version} is available",
     "notesTitle": "What's new in {version}",
     "howTo": "To update: open TizenBrew, choose TizenBrew Installer, then Install from GitHub and enter b0tmtl/TermTV. Your sources and settings are kept."
+  },
+  "sports": {
+    "liveNow": "LIVE",
+    "tomorrow": "Tomorrow {time}",
+    "onNow": "on now",
+    "chooseChannel": "Choose a channel",
+    "startsAt": "Starts {when}. OK on a channel tunes to it now.",
+    "channels": {
+      "one": "{count} channel",
+      "other": "{count} channels"
+    },
+    "building": "Looking for sport events in the guide…",
+    "empty": "No matches found in the guide for this sport.",
+    "noGuide": "Sports are found in the TV guide, and there is no guide yet. Check that your sources have a guide (Settings → TV Guide).",
+    "name": {
+      "all": "All sports",
+      "hockey": "Hockey",
+      "soccer": "Soccer",
+      "football": "Football",
+      "basketball": "Basketball",
+      "baseball": "Baseball",
+      "tennis": "Tennis",
+      "fighting": "Combat sports",
+      "motorsport": "Motorsport",
+      "golf": "Golf",
+      "rugby": "Rugby",
+      "cricket": "Cricket",
+      "cycling": "Cycling",
+      "others": "Other sports"
+    }
   }
 }
