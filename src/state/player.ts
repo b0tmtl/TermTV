@@ -33,6 +33,8 @@ export interface PlayerState {
   serverNote: { n: number; total: number } | null;
   /** Target position while scrubbing with Left/Right (seconds), null when not scrubbing. */
   scrub: number | null;
+  /** Playback speed (1 = normal). */
+  speed: number;
   engine: string;
 }
 
@@ -51,6 +53,7 @@ export const player = createStore<PlayerState>({
   reconnecting: 0,
   serverNote: null,
   scrub: null,
+  speed: 1,
   engine: '',
 });
 
@@ -158,7 +161,7 @@ export async function play(target: PlaybackTarget, opts: { startAt?: number; win
   const e = getEngine();
   player.set({
     target, status: 'loading', time: 0, duration: 0, subtitle: '', error: '', audio: [], text: [],
-    audioIndex: -1, textIndex: -1, windowed: !!opts.windowed, reconnecting: 0, serverNote: null, scrub: null,
+    audioIndex: -1, textIndex: -1, windowed: !!opts.windowed, reconnecting: 0, serverNote: null, scrub: null, speed: 1,
   });
   e.setRect(opts.windowed || null);
   currentUrl = urlFor(target);
@@ -291,6 +294,17 @@ export function stop(): void {
 export function setWindow(rect: Rect | null): void {
   if (engine) engine.setRect(rect);
   player.set({ windowed: !!rect });
+}
+
+export const SPEEDS = [1, 1.25, 1.5, 2, 4, 10];
+
+/** Sets the playback speed (movies and episodes); returns the speed the engine actually uses. */
+export function setSpeed(rate: number): number {
+  const st = player.get();
+  if (!engine || !st.target || st.target.kind === 'live') return 1;
+  const applied = engine.setSpeed(rate);
+  player.set({ speed: applied });
+  return applied;
 }
 
 export function togglePause(): void {

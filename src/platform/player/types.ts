@@ -48,5 +48,7 @@ export interface PlayerEngine {
   selectText(index: number): void;
   currentAudio(): number;
   currentText(): number;
+  /** Playback speed; returns the speed actually applied (engines don't all support every rate). */
+  setSpeed(rate: number): number;
   destroy(): void;
 }

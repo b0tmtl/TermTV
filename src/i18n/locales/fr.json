@@ -314,7 +314,10 @@
       "stretch": "Étirer"
     },
     "loading": "Chargement",
-    "tryingBackup": "Le serveur ne répond pas, essai de l'adresse {n} sur {total}…"
+    "tryingBackup": "Le serveur ne répond pas, essai de l'adresse {n} sur {total}…",
+    "speed": "Vitesse",
+    "decimal": ",",
+    "speedFallback": "{asked} n'est pas disponible pour ce flux avec le lecteur Samsung : lecture à {used}. Toutes les vitesses fonctionnent avec le lecteur HTML5 (Paramètres → Lecteur)."
   },
   "search": {
     "placeholder": "Tapez pour chercher…",

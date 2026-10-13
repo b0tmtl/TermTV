@@ -67,6 +67,8 @@ export class Html5Engine implements PlayerEngine {
   async load(url: string, opts: LoadOptions): Promise<void> {
     const gen = ++this.gen;
     this.teardown();
+    // The element keeps its speed across sources: every new title starts at 1x.
+    this.video.playbackRate = 1;
     this.ev.status('loading');
     const v = this.video;
     const kind = kindOf(url, opts.live);
@@ -249,6 +251,12 @@ export class Html5Engine implements PlayerEngine {
 
   currentText() {
     return this.textIndex;
+  }
+
+  setSpeed(rate: number): number {
+    // Browsers mute audio above ~4x; the picture keeps up.
+    this.video.playbackRate = rate;
+    return this.video.playbackRate;
   }
 
   destroy() {

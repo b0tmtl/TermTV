@@ -314,7 +314,10 @@
       "stretch": "Stretch"
     },
     "loading": "Loading",
-    "tryingBackup": "Server not answering, trying URL {n} of {total}…"
+    "tryingBackup": "Server not answering, trying URL {n} of {total}…",
+    "speed": "Speed",
+    "decimal": ".",
+    "speedFallback": "{asked} isn't available for this stream with the Samsung player: playing at {used}. Every speed works with the HTML5 player (Settings → Player)."
   },
   "search": {
     "placeholder": "Type to search…",

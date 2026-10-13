@@ -308,6 +308,29 @@ export class AvPlayEngine implements PlayerEngine {
     return this.text;
   }
 
+  /**
+   * AVPlay's setSpeed takes whole numbers only (trick play: typically 1, 2, 4, 8, 16 depending on
+   * the stream). Fractional rates fall back to 1; others to the nearest rate the stream accepts.
+   */
+  setSpeed(rate: number): number {
+    const tryRate = (r: number) => {
+      try {
+        this.av.setSpeed(r);
+        return true;
+      } catch {
+        return false;
+      }
+    };
+    if (rate !== Math.floor(rate)) {
+      tryRate(1);
+      return 1;
+    }
+    const candidates = [rate].concat([2, 4, 8, 16].filter((r) => r !== rate).sort((a, b) => Math.abs(a - rate) - Math.abs(b - rate)));
+    for (const r of candidates) if (tryRate(r)) return r;
+    tryRate(1);
+    return 1;
+  }
+
   destroy() {
     this.close();
     this.obj.style.display = 'none';

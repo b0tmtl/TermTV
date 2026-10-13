@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { Glyph } from '@/ui/Glyph';
 import { LoadingDots } from '@/ui/LoadingDots';
+import { toast } from '@/ui/ui-state';
 import type { Channel } from '@/core/models';
 import { cleanTitle, splitYear } from '@/core/normalize';
 import { formatDuration, formatTime, t } from '@/i18n';
@@ -8,7 +9,7 @@ import { focusById, focusable } from '@/navigation/focus';
 import { back } from '@/navigation/router';
 import type { KeyInfo } from '@/platform/tv';
 import { nowNext } from '@/state/library';
-import { cancelScrub, commitScrub, nextEpisode, play, player, retry, scrubStep, scrubToFraction, selectAudio, selectText, setAspect, setWindow, stop, togglePause, zap } from '@/state/player';
+import { SPEEDS, cancelScrub, commitScrub, nextEpisode, play, player, retry, scrubStep, scrubToFraction, selectAudio, setSpeed, selectText, setAspect, setWindow, stop, togglePause, zap } from '@/state/player';
 import { useStore } from '@/state/store';
 import { isFavorite, user } from '@/state/user';
 import { Img } from '@/ui/Cards';
@@ -105,6 +106,19 @@ export function PlayerScreen() {
     ];
     showMenu(t('player.tracks'), opts);
   };
+
+  const speedMenu = () =>
+    showMenu(
+      t('player.speed'),
+      SPEEDS.map((r) => ({
+        label: speedLabel(r),
+        checked: st.speed === r,
+        onSelect: () => {
+          const used = setSpeed(r);
+          if (used !== r) toast(t('player.speedFallback', { asked: speedLabel(r), used: speedLabel(used) }));
+        },
+      })),
+    );
 
   const cycleAspect = () => {
     const next = aspect === 'fit' ? 'fill' : aspect === 'fill' ? 'stretch' : 'fit';
@@ -310,6 +324,9 @@ export function PlayerScreen() {
                   <Icon name="subs" />
                   {t('player.tracks')}
                 </span>
+                <span class="btn small" {...focusable({ id: 'pc:speed', onEnter: speedMenu })}>
+                  {t('player.speed')} {speedLabel(st.speed)}
+                </span>
                 <span class="btn small" {...focusable({ id: 'pc:aspect', onEnter: cycleAspect })}>
                   <Icon name="aspect" />
                   {t('player.aspect.' + aspect)}
@@ -380,3 +397,7 @@ export function PlayerScreen() {
   }
 }
 
+
+function speedLabel(r: number): string {
+  return String(r).replace('.', t('player.decimal')) + '×';
+}
