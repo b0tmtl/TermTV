@@ -4,13 +4,12 @@ import type { Channel, Item } from '@/core/models';
 import { cleanTitle } from '@/core/normalize';
 import { formatTime, t } from '@/i18n';
 import { focusById, focusable, keyHandler } from '@/navigation/focus';
-import { navigate, updateRoute } from '@/navigation/router';
+import { updateRoute } from '@/navigation/router';
 import { libraryState, search, viewOfItem, type SearchOutput, type SearchScope } from '@/state/library';
-import { play } from '@/state/player';
 import { useStore } from '@/state/store';
 import { addRecentSearch, updateData, user } from '@/state/user';
 import { Img, ItemCard, Prompt } from '@/ui/Cards';
-import { favoriteToggle, itemMenu, openItem, unlockIfNeeded } from '@/ui/actions';
+import { favoriteToggle, itemMenu, openItem, startPlayback, unlockIfNeeded } from '@/ui/actions';
 import { Keyboard } from '@/ui/Keyboard';
 import { Row } from '@/ui/Row';
 import { typedChar } from '@/ui/typing';
@@ -54,8 +53,7 @@ export function SearchScreen(props: { scope?: string; q?: string }) {
   const playGuide = async (ch: Channel) => {
     addRecentSearch(q);
     if (!(await unlockIfNeeded(ch))) return;
-    await play({ kind: 'live', channel: ch, list: [ch] });
-    navigate({ name: 'player' });
+    startPlayback({ kind: 'live', channel: ch, list: [ch] });
   };
   const cardKeys = (item: Item) => (k: { key: string }) => {
     if (k.key === 'red') return favoriteToggle(item), true;

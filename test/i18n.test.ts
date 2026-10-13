@@ -52,3 +52,28 @@ describe('translations', () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe('every locale', () => {
+  it('has the same keys and placeholders as English', async () => {
+    const fs = await import('node:fs');
+    const dir = 'src/i18n/locales';
+    const flat = (o: Record<string, unknown>, p = ''): Record<string, string> => {
+      const out: Record<string, string> = {};
+      for (const k of Object.keys(o)) {
+        if (k === '_meta') continue;
+        const v = o[k];
+        if (v && typeof v === 'object' && !('other' in (v as object))) Object.assign(out, flat(v as Record<string, unknown>, p + k + '.'));
+        else out[p + k] = typeof v === 'string' ? v : JSON.stringify(v);
+      }
+      return out;
+    };
+    const vars = (s: string) => (s.match(/\{\w+\}/g) || []).sort().filter((x, i, a) => a.indexOf(x) === i).join(',');
+    const en = flat(JSON.parse(fs.readFileSync(dir + '/en.json', 'utf8')));
+    for (const file of fs.readdirSync(dir).filter((f: string) => f.endsWith('.json') && f !== 'en.json')) {
+      const loc = flat(JSON.parse(fs.readFileSync(dir + '/' + file, 'utf8')));
+      expect(Object.keys(loc).filter((k) => !(k in en)), file + ' extra keys').toEqual([]);
+      expect(Object.keys(en).filter((k) => !(k in loc)), file + ' missing keys').toEqual([]);
+      expect(Object.keys(en).filter((k) => vars(en[k]) !== vars(loc[k])), file + ' placeholders').toEqual([]);
+    }
+  });
+});

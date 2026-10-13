@@ -4,14 +4,13 @@ import type { Episode, Item, Movie, MovieDetails, Series, SeriesDetails } from '
 import { cleanTitle, splitYear } from '@/core/normalize';
 import { formatDuration, formatMinutes, t } from '@/i18n';
 import { focusable, focused, focusFirst } from '@/navigation/focus';
-import { navigate, replace } from '@/navigation/router';
+import { replace } from '@/navigation/router';
 import { itemByKey, libraryState, movieDetails, seriesDetails, variantsOf } from '@/state/library';
-import { play } from '@/state/player';
 import { useStore } from '@/state/store';
 import { user } from '@/state/user';
 import { Img, Prompt } from '@/ui/Cards';
 import { showMenu } from '@/ui/Dialog';
-import { favoriteToggle, itemMenu } from '@/ui/actions';
+import { favoriteToggle, itemMenu, startPlayback } from '@/ui/actions';
 import { Icon } from '@/ui/icons';
 
 export function DetailsScreen({ itemKey }: { itemKey: string }) {
@@ -99,17 +98,17 @@ export function DetailsScreen({ itemKey }: { itemKey: string }) {
       <div class="actions">
         {r ? (
           <>
-            <span class="btn primary" data-focus-default="" {...focusable({ onEnter: () => play({ kind: 'movie', movie }, { startAt: r.pos }).then(() => navigate({ name: 'player' })) })}>
+            <span class="btn primary" data-focus-default="" {...focusable({ onEnter: () => startPlayback({ kind: 'movie', movie }, { startAt: r.pos }) })}>
               <Icon name="play" />
               {t('details.resume', { time: formatDuration(r.pos) })}
             </span>
-            <span class="btn" {...focusable({ onEnter: () => play({ kind: 'movie', movie }).then(() => navigate({ name: 'player' })) })}>
+            <span class="btn" {...focusable({ onEnter: () => startPlayback({ kind: 'movie', movie }) })}>
               <Icon name="replay" />
               {t('details.fromStart')}
             </span>
           </>
         ) : (
-          <span class="btn primary" data-focus-default="" {...focusable({ onEnter: () => play({ kind: 'movie', movie }).then(() => navigate({ name: 'player' })) })}>
+          <span class="btn primary" data-focus-default="" {...focusable({ onEnter: () => startPlayback({ kind: 'movie', movie }) })}>
             <Icon name="play" />
             {t('details.play')}
           </span>
@@ -134,7 +133,7 @@ export function DetailsScreen({ itemKey }: { itemKey: string }) {
     const lastEp = last && last.episodeKey ? episodes.find((e) => e.key === last.episodeKey) : undefined;
     const currentSeason = season !== null ? season : lastEp ? lastEp.season : seasons[0];
     seasonEps = episodes.filter((e) => e.season === currentSeason);
-    const playEpisode = (ep: Episode, startAt?: number) => play({ kind: 'episode', series, episode: ep, episodes }, { startAt }).then(() => navigate({ name: 'player' }));
+    const playEpisode = (ep: Episode, startAt?: number) => startPlayback({ kind: 'episode', series, episode: ep, episodes }, { startAt });
     playEp = playEpisode;
     // Resume the last episode, or start the next one when it was finished.
     let resumeEp: Episode | undefined;
@@ -149,7 +148,7 @@ export function DetailsScreen({ itemKey }: { itemKey: string }) {
     const shuffle = () => {
       if (!episodes.length) return;
       const shuffled = episodes.slice().sort(() => Math.random() - 0.5);
-      play({ kind: 'episode', series, episode: shuffled[0], episodes: shuffled }).then(() => navigate({ name: 'player' }));
+      startPlayback({ kind: 'episode', series, episode: shuffled[0], episodes: shuffled });
     };
     body = (
       <>

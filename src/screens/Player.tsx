@@ -243,6 +243,7 @@ export function PlayerScreen() {
       )}
       {(st.status === 'loading' || st.status === 'buffering') && (
         <div class="status">
+          {st.status === 'loading' && title && <div class="ellipsis" style={{ fontSize: 30, fontWeight: 700, marginBottom: 12 }}>{title}</div>}
           <LoadingDots />
           {st.serverNote ? (
             <div style={{ marginTop: 14, fontSize: 22 }}>{t('player.tryingBackup', { n: st.serverNote.n, total: st.serverNote.total })}</div>

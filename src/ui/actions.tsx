@@ -4,7 +4,7 @@ import type { Channel, Item } from '@/core/models';
 import { t } from '@/i18n';
 import { navigate } from '@/navigation/router';
 import { isItemLocked, viewOfItem } from '@/state/library';
-import { play } from '@/state/player';
+import { play, type PlaybackTarget } from '@/state/player';
 import { addToList, createList, isFavorite, toggleFavorite, user } from '@/state/user';
 import { promptPin, promptText, showMenu, type MenuOption } from './Dialog';
 import { toast } from './ui-state';
@@ -26,11 +26,19 @@ export async function askPin(): Promise<boolean> {
   return false;
 }
 
+/**
+ * Opens the player at once and starts the stream behind it. Waiting for the stream first (the
+ * player connecting to the provider, ~5 s on IPTV) left the previous screen frozen meanwhile.
+ */
+export function startPlayback(target: PlaybackTarget, opts?: { startAt?: number }): void {
+  play(target, opts).catch((e) => console.warn('play failed', e));
+  navigate({ name: 'player' });
+}
+
 export async function openItem(item: Item, list?: Channel[]): Promise<void> {
   if (!(await unlockIfNeeded(item))) return;
   if (item.kind === 'live') {
-    await play({ kind: 'live', channel: item, list: list && list.length ? list : [item] });
-    navigate({ name: 'player' });
+    startPlayback({ kind: 'live', channel: item, list: list && list.length ? list : [item] });
   } else {
     navigate({ name: 'details', key: item.key });
   }

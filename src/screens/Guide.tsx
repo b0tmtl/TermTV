@@ -7,14 +7,12 @@ import type { Channel } from '@/core/models';
 import { cleanTitle } from '@/core/normalize';
 import { formatDate, formatTime, t } from '@/i18n';
 import { focus, focusable, registerHandlers } from '@/navigation/focus';
-import { navigate } from '@/navigation/router';
 import type { KeyInfo } from '@/platform/tv';
 import { hasGuide, libraryState, programmes } from '@/state/library';
-import { play } from '@/state/player';
 import { useStore } from '@/state/store';
 import { user } from '@/state/user';
 import { Img, Prompt } from '@/ui/Cards';
-import { favoriteToggle, unlockIfNeeded } from '@/ui/actions';
+import { favoriteToggle, startPlayback, unlockIfNeeded } from '@/ui/actions';
 import { toast } from '@/ui/ui-state';
 import { channelsFor, liveCategories } from './Live';
 
@@ -154,8 +152,7 @@ export function GuideScreen() {
     const tnow = Date.now();
     if (b.empty || (b.start <= tnow && b.end > tnow)) {
       if (!(await unlockIfNeeded(c))) return;
-      await play({ kind: 'live', channel: c, list: channels });
-      navigate({ name: 'player' });
+      startPlayback({ kind: 'live', channel: c, list: channels });
     } else if (b.start > tnow) {
       toast(t('guide.startsAt', { time: formatTime(b.start, clock24), date: formatDate(b.start) }));
     } else {
