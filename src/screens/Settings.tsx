@@ -1,3 +1,4 @@
+import { isAndroid } from '@/platform/android';
 import type { ComponentChildren } from 'preact';
 import { Glyph } from '@/ui/Glyph';
 import { useState } from 'preact/hooks';
@@ -9,7 +10,7 @@ import { BACKUP_NAME, openTextFile, saveTextFile } from '@/platform/files';
 import { deviceInfo } from '@/platform/tv';
 import { counts, forgetSource, libraryState, refreshEpg, refreshSource, refreshSources, sourceLibrary, sourcesChanged } from '@/state/library';
 import { cacheState, testStorage } from '@/state/cache';
-import { checkForUpdate, updateState } from '@/state/updates';
+import { checkForUpdate, installedVersion, updateState } from '@/state/updates';
 import { showReleaseNotes } from '@/ui/update-notice';
 import { useStore } from '@/state/store';
 import {
@@ -272,11 +273,11 @@ function PlayerPane() {
     <div>
       <Setting
         label={t('settings.engine')}
-        desc={t('settings.engineDesc')}
-        value={s.playerEngine === 'native' ? t('settings.engineNative') : t('settings.engineHtml5')}
+        desc={isAndroid ? t('settings.engineAndroidDesc') : t('settings.engineDesc')}
+        value={s.playerEngine === 'native' ? (isAndroid ? t('settings.engineAndroid') : t('settings.engineNative')) : t('settings.engineHtml5')}
         onEnter={() => updateSettings({ playerEngine: s.playerEngine === 'native' ? 'html5' : 'native' })}
       />
-      {s.playerEngine === 'native' && (
+      {s.playerEngine === 'native' && !isAndroid && (
         <Setting
           label={t('settings.videoSurface')}
           desc={t('settings.videoSurfaceDesc')}
@@ -551,13 +552,13 @@ function AboutPane() {
   return (
     <div style={{ fontSize: 24, lineHeight: 1.7 }}>
       <div>
-        <b>TermTV</b> {__VERSION__}
+        <b>TermTV</b> {installedVersion()}
       </div>
       <div class="dim">{t('about.tagline')}</div>
       <div style={{ marginTop: 20 }}>
         {t('about.license')}: GNU GPL v3.0
       </div>
-      <div>{t('about.source')}: github.com/b0tmtl/termtv</div>
+      <div>{t('about.source')}: {isAndroid ? 'github.com/b0tmtl/termtv-android' : 'github.com/b0tmtl/termtv'}</div>
       <div style={{ marginTop: 20 }} class="dim">
         {t('about.device')}: {d.model} {d.tizenVersion ? `· Tizen ${d.tizenVersion}` : ''}
       </div>

@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useRef } from 'preact/hooks';
 import { setLanguage, t } from '@/i18n';
-import { dispatchKey, focusById, focusFirst, focusInto, onFocusChange, setGlobalHandler } from '@/navigation/focus';
+import { dispatchKey, focus, focusById, focusFirst, focusInto, onFocusChange, setGlobalHandler } from '@/navigation/focus';
 import { back, currentRoute, goSection, router, type Route } from '@/navigation/router';
-import { exitApp, mapKey, registerKeys } from '@/platform/tv';
+import { installTouch } from '@/platform/android';
+import { exitApp, mapKey, registerKeys, type Key } from '@/platform/tv';
 import { libraryState } from '@/state/library';
 import { player, stop } from '@/state/player';
 import { useStore } from '@/state/store';
@@ -90,6 +91,14 @@ export function App() {
       if (dispatchKey(k)) e.preventDefault();
     };
     document.addEventListener('keydown', onKeyDown);
+    // Android: keys the WebView doesn't pass on (Back, colors, media, channel) come from the app.
+    (window as unknown as { __termtvKey?: (name: string, repeat?: boolean) => void }).__termtvKey = (name, repeat) => {
+      dispatchKey({ key: name as Key, repeat: !!repeat });
+    };
+    installTouch(
+      (key) => dispatchKey({ key, repeat: false }),
+      (el) => focus(el, { scroll: false }),
+    );
     return () => document.removeEventListener('keydown', onKeyDown);
   }, []);
 

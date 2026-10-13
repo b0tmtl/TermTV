@@ -14,6 +14,8 @@ export interface KeyInfo {
   repeat: boolean;
 }
 
+import { androidInfo, native } from './android';
+
 declare const tizen: any;
 declare const webapis: any;
 
@@ -73,6 +75,7 @@ export function mapKey(e: KeyboardEvent): KeyInfo | null {
 }
 
 export function exitApp(): void {
+  if (native) return native.exit();
   if (isTizen) {
     try {
       tizen.application.getCurrentApplication().exit();
@@ -93,6 +96,12 @@ export interface DeviceInfo {
 
 export function deviceInfo(): DeviceInfo {
   const info: DeviceInfo = { model: 'Browser', firmware: navigator.userAgent, tizenVersion: '', duid: '' };
+  const a = androidInfo();
+  if (a) {
+    info.model = a.model + (a.android ? ' · Android ' + a.android : '');
+    info.firmware = 'TermTV for Android ' + a.versionName;
+    return info;
+  }
   if (typeof webapis !== 'undefined' && webapis.productinfo) {
     try {
       info.model = webapis.productinfo.getRealModel ? webapis.productinfo.getRealModel() : webapis.productinfo.getModel();
@@ -114,6 +123,7 @@ export function deviceInfo(): DeviceInfo {
 
 /** Keeps the screen saver off during playback. */
 export function setScreenSaver(on: boolean): void {
+  if (native) return native.keepScreenOn(!on);
   if (typeof webapis === 'undefined' || !webapis.appcommon) return;
   try {
     webapis.appcommon.setScreenSaver(on ? webapis.appcommon.AppCommonScreenSaverState.SCREEN_SAVER_ON : webapis.appcommon.AppCommonScreenSaverState.SCREEN_SAVER_OFF);

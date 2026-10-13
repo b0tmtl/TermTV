@@ -1,6 +1,7 @@
 // Saving and opening a file (backup / restore). On the TV this uses a USB drive through the Tizen
 // filesystem API; in a desktop browser it downloads / opens a file.
 
+import { native } from './android';
 import { isTizen } from './tv';
 
 declare const tizen: any;
@@ -26,6 +27,12 @@ function resolveDir(label: string): Promise<any> {
 }
 
 export async function saveTextFile(name: string, text: string): Promise<string> {
+  // Android: into Downloads.
+  if (native) {
+    const where = native.saveText(name, text);
+    if (!where) throw new Error('SAVE_FAILED');
+    return where;
+  }
   if (!isTizen) {
     const blob = new Blob([text], { type: 'application/json' });
     const a = document.createElement('a');

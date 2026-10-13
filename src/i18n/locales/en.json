@@ -362,6 +362,8 @@
     "engine": "Player engine",
     "engineDesc": "Samsung's built-in player decodes in hardware and is best for almost every stream; HTML5 decodes in the app and is mainly a fallback for a stream that won't play",
     "engineNative": "Samsung (AVPlay)",
+    "engineAndroid": "Android (ExoPlayer)",
+    "engineAndroidDesc": "Android's ExoPlayer decodes in hardware and plays almost every stream (HLS, MPEG-TS, MKV, MP4); HTML5 is mainly a fallback for a stream that won't play",
     "engineHtml5": "HTML5",
     "liveFormat": "Live stream format (Xtream)",
     "liveFormatDesc": "If a channel won't play, TermTV automatically tries the other format",
@@ -474,7 +476,10 @@
     "whatsNew": "What's new",
     "availableTitle": "TermTV {version} is available",
     "notesTitle": "What's new in {version}",
-    "howTo": "To update: open TizenBrew, choose TizenBrew Installer, then Install from GitHub and enter b0tmtl/TermTV. Your sources and settings are kept."
+    "howTo": "To update: open TizenBrew, choose TizenBrew Installer, then Install from GitHub and enter b0tmtl/TermTV. Your sources and settings are kept.",
+    "howToAndroid": "Install now downloads the update and opens Android's installer (the first time, Android may ask you to allow TermTV to install apps). Your sources and settings are kept.",
+    "install": "Install now",
+    "downloading": "Downloading the update…"
   },
   "sports": {
     "liveNow": "LIVE",

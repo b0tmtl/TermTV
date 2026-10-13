@@ -8,6 +8,7 @@ import {
 } from '@/core/categories';
 import type { Category, Channel, Episode, Item, MediaKind, Movie, Programme, Series, SeriesDetails, MovieDetails, Source } from '@/core/models';
 import { ALL_KINDS, DocKind, type SearchResult } from '@/core/search/engine';
+import { ANDROID_PROXY, isAndroid } from '@/platform/android';
 import { XtreamClient, xtreamServers } from '@/providers/xtream';
 import { parseBytes, unpackLibrary } from '@/workers/cache-codec';
 import type { EpgChannelRef, SearchBuildDocs, SourceEpg, SourceLibrary } from '@/workers/protocol';
@@ -59,7 +60,12 @@ const docIndexByKey = new Map<string, number>();
 
 function devProxy(): string | undefined {
   // In a desktop browser the dev server proxies provider requests (they don't send CORS headers).
-  return typeof __DEV__ !== 'undefined' && __DEV__ && !(window as any).tizen ? '/proxy?url=' : undefined;
+  return typeof __DEV__ !== 'undefined' && __DEV__ && !(window as any).tizen && !isAndroid ? '/proxy?url=' : undefined;
+}
+
+/** Provider data requests: through the dev server, or through the Android app (videos aren't). */
+function dataProxy(): string | undefined {
+  return isAndroid ? ANDROID_PROXY : devProxy();
 }
 
 function enabledSources(): Source[] {
@@ -208,7 +214,7 @@ export async function refreshSource(source: Source): Promise<boolean> {
   setStage('start');
   try {
     const skip = await hiddenInEveryProfile().catch(() => undefined);
-    const res = await libraryWorker().call({ type: 'refresh', source, proxy: devProxy(), skip }, (p) => {
+    const res = await libraryWorker().call({ type: 'refresh', source, proxy: dataProxy(), skip }, (p) => {
       if (p.type === 'progress') setStage(p.stage, p.loaded, p.total);
     });
     if (res.type !== 'library' || !res.library) throw new Error('No data');
@@ -239,7 +245,7 @@ export async function refreshEpg(source: Source): Promise<void> {
   const app = user.get().app;
   try {
     const res = await libraryWorker().call({
-      type: 'epg', source, urls: l.epgUrls, channels, hoursAhead: app.epgHoursAhead, hoursBack: app.epgHoursBack, proxy: devProxy(),
+      type: 'epg', source, urls: l.epgUrls, channels, hoursAhead: app.epgHoursAhead, hoursBack: app.epgHoursBack, proxy: dataProxy(),
     });
     if (res.type === 'epg' && res.epg) {
       sourceEpgs.set(source.id, res.epg);

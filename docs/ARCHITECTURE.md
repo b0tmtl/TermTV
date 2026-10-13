@@ -25,6 +25,12 @@ providers/       xtream · m3u (streaming) · xmltv (streaming, gzip)       (pur
 platform/        tv keys & device · AVPlay / HTML5 engines · IndexedDB · HTTP · USB files
 ```
 
+**Android** (github.com/b0tmtl/TermTV-Android) runs this same build in a WebView. `platform/android.ts`
+talks to the app's `TermTVNative` bridge: provider requests go through the app (`/proxy?url=`, no CORS),
+the player is Media3 ExoPlayer drawn under the transparent page like AVPlay (`player/exoplayer.ts`), and
+keys the WebView doesn't deliver (Back, colors, media) arrive through `window.__termtvKey`. On touch
+screens a swipe becomes arrow keys.
+
 `platform/` is the only layer that knows about Tizen. Everything else runs in a desktop browser, which is how
 the app is developed and tested (`npm run mock` + `npm run dev` + `scripts/e2e.mjs`). A future LG webOS port
 would replace `platform/` only.

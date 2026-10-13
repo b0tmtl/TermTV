@@ -1,10 +1,18 @@
 // "A new version is available": checks the latest GitHub release at most once a day and shows its
-// notes. TizenBrew installs updates; TermTV can only tell you about them.
+// notes. On Samsung TVs TizenBrew installs updates; TermTV can only tell you about them. The
+// Android app has its own releases (an APK per release) and installs them itself.
 
+import { androidInfo, isAndroid } from '@/platform/android';
 import { createStore } from './store';
 
-const REPO = 'b0tmtl/TermTV';
+const REPO = isAndroid ? 'b0tmtl/TermTV-Android' : 'b0tmtl/TermTV';
 const API = 'https://api.github.com/repos/' + REPO + '/releases/latest';
+
+/** The installed version: the web app's, or the Android app's ("0.1.23.1": web version + app revision). */
+export function installedVersion(): string {
+  const a = androidInfo();
+  return a && a.versionName ? a.versionName : __VERSION__;
+}
 const DAY = 24 * 3600 * 1000;
 const LS_CHECKED = 'termtv-update-checked';
 const LS_SEEN = 'termtv-update-seen';
@@ -18,6 +26,8 @@ export interface UpdateState {
   publishedAt?: number;
   available: boolean;
   error?: string;
+  /** Android: the release's APK. */
+  apkUrl?: string;
 }
 
 export const updateState = createStore<UpdateState>({ checking: false, available: false });
@@ -62,7 +72,13 @@ export async function checkForUpdate(force = false): Promise<UpdateState> {
   try {
     const res = await fetch(API, { headers: { Accept: 'application/vnd.github+json' }, credentials: 'omit' });
     if (!res.ok) throw new Error('GitHub answered ' + res.status);
-    const j = (await res.json()) as { tag_name?: string; body?: string; published_at?: string };
+    const j = (await res.json()) as {
+      tag_name?: string;
+      body?: string;
+      published_at?: string;
+      assets?: Array<{ name: string; browser_download_url: string }>;
+    };
+    const apk = (j.assets || []).filter((a) => /\.apk$/i.test(a.name))[0];
     const latest = String(j.tag_name || '').replace(/^v/, '');
     ls(LS_CHECKED, String(Date.now()));
     updateState.set({
@@ -71,7 +87,8 @@ export async function checkForUpdate(force = false): Promise<UpdateState> {
       latest,
       notes: plainNotes(j.body || ''),
       publishedAt: j.published_at ? Date.parse(j.published_at) : undefined,
-      available: !!latest && compareVersions(latest, __VERSION__) > 0,
+      available: !!latest && compareVersions(latest, installedVersion()) > 0,
+      apkUrl: apk ? apk.browser_download_url : undefined,
     });
   } catch (e) {
     updateState.set({ checking: false, checkedAt: Date.now(), error: e instanceof Error ? e.message : String(e) });

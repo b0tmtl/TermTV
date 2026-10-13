@@ -3,6 +3,7 @@
 
 import type { Channel, Episode, Movie, Series } from '@/core/models';
 import { avplayAvailable, AvPlayEngine } from '@/platform/player/avplay';
+import { exoAvailable, ExoEngine } from '@/platform/player/exoplayer';
 import { Html5Engine } from '@/platform/player/html5';
 import type { PlayerEngine, PlayerStatus, Rect, Track } from '@/platform/player/types';
 import { setScreenSaver } from '@/platform/tv';
@@ -109,11 +110,12 @@ const events = {
 };
 
 function getEngine(): PlayerEngine {
-  const want = user.get().data.settings.playerEngine === 'native' && avplayAvailable() ? 'native' : 'html5';
+  const native = user.get().data.settings.playerEngine === 'native';
+  const want = native && avplayAvailable() ? 'native' : native && exoAvailable() ? 'exo' : 'html5';
   AvPlayEngine.minimalSurface = user.get().data.settings.videoSurface !== 'full';
   if (engine && engineKind === want) return engine;
   if (engine) engine.destroy();
-  engine = want === 'native' ? new AvPlayEngine(events) : new Html5Engine(events);
+  engine = want === 'native' ? new AvPlayEngine(events) : want === 'exo' ? new ExoEngine(events) : new Html5Engine(events);
   engineKind = want;
   player.set({ engine: engine.name });
   return engine;
