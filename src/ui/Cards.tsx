@@ -1,5 +1,6 @@
 import type { ComponentChildren } from 'preact';
 import { Glyph } from './Glyph';
+import { isWatched } from '@/state/user';
 import { useState } from 'preact/hooks';
 import type { Channel, Item } from '@/core/models';
 import { cleanTitle, splitYear } from '@/core/normalize';
@@ -42,6 +43,7 @@ export function PosterCard({ item, id, progress, favorite, locked, badge, sub, .
         {badge && <span class="badge">{badge}</span>}
         {favorite && <span class="fav"><Glyph n="star" /></span>}
         {locked && <span class="lock"><Glyph n="lock" /></span>}
+        {item.kind !== 'live' && isWatched(item.key) && <span class="seen"><Glyph n="check" /></span>}
         {progress !== undefined && progress > 0 && (
           <div class="progress">
             <i style={{ width: Math.min(100, progress * 100) + '%' }} />

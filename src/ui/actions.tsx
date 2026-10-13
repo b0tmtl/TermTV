@@ -6,7 +6,7 @@ import { t } from '@/i18n';
 import { navigate } from '@/navigation/router';
 import { isFavoriteCategory, isItemLocked, viewOfItem } from '@/state/library';
 import { play, type PlaybackTarget } from '@/state/player';
-import { addToList, createList, isFavorite, toggleFavorite, toggleFavoriteCategory, user } from '@/state/user';
+import { addToList, createList, isFavorite, isWatched, setWatched, toggleFavorite, toggleFavoriteCategory, user } from '@/state/user';
 import { promptPin, promptText, showMenu, type MenuOption } from './Dialog';
 import { toast } from './ui-state';
 
@@ -87,6 +87,7 @@ export function itemMenu(item: Item, extra: MenuOption[] = []): void {
         ),
     },
   ];
+  if (item.kind !== 'live') options.push(watchedOption(item));
   if (view) {
     options.push({
       label: t('item.goToCategory', { name: view.name }),
@@ -104,4 +105,31 @@ export function favoriteCategoryToggle(view: CategoryView): void {
 
 export function favoriteCategoryOption(view: CategoryView): MenuOption {
   return { label: isFavoriteCategory(view) ? t('categories.favRemove') : t('categories.favAdd'), onSelect: () => favoriteCategoryToggle(view) };
+}
+
+/** "Mark as watched / not watched" for a movie or a whole series. */
+export function watchedOption(item: Item): MenuOption {
+  const on = !isWatched(item.key);
+  return {
+    label: on ? t('watched.mark') : t('watched.unmark'),
+    onSelect: () => {
+      // A series: also drop the resume points of the episodes watched from it.
+      const eps = item.kind === 'series' ? user.get().data.history.filter((h) => h.key === item.key && h.episodeKey).map((h) => h.episodeKey!) : [];
+      setWatched([item.key], on, eps);
+      toast(on ? t('watched.marked', { name: item.name }) : t('watched.unmarked', { name: item.name }));
+    },
+  };
+}
+
+/** Same for one episode. */
+export function episodeWatchedOption(ep: { key: string; season: number; episode: number }): MenuOption {
+  const on = !isWatched(ep.key);
+  const name = 'S' + ep.season + ' · E' + ep.episode;
+  return {
+    label: on ? t('watched.mark') : t('watched.unmark'),
+    onSelect: () => {
+      setWatched([ep.key], on);
+      toast(on ? t('watched.marked', { name }) : t('watched.unmarked', { name }));
+    },
+  };
 }

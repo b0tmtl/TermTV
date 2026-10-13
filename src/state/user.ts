@@ -72,6 +72,8 @@ export interface ProfileData {
   lists: FavoriteList[];
   history: HistoryEntry[];
   resume: Record<string, ResumePoint>;
+  /** Movies, episodes and whole series marked as watched (key -> when). */
+  watched?: Record<string, number>;
   recentSearches: string[];
   categories: Record<MediaKind, CategoryPrefs>;
   /** Category view ids locked by parental control. */
@@ -121,6 +123,7 @@ export function defaultProfileData(): ProfileData {
     lists: [],
     history: [],
     resume: {},
+    watched: {},
     recentSearches: [],
     categories: { live: defaultCategoryPrefs('live'), movie: defaultCategoryPrefs('movie'), series: defaultCategoryPrefs('series') },
     locked: [],
@@ -326,11 +329,39 @@ export function recordHistory(entry: Omit<HistoryEntry, 'at'>): void {
   }));
 }
 
+export function isWatched(key: string): boolean {
+  const w = user.get().data.watched;
+  return !!(w && w[key]);
+}
+
+/**
+ * Marks titles as watched (or not). Watched titles lose their resume point, so they leave
+ * "Continue watching"; `alsoClear` lists more resume keys to drop (a series' episodes).
+ */
+export function setWatched(keys: string[], on: boolean, alsoClear: string[] = []): void {
+  updateData((d) => {
+    const watched = { ...(d.watched || {}) };
+    const resume = { ...d.resume };
+    for (const k of keys) {
+      if (on) {
+        watched[k] = Date.now();
+        delete resume[k];
+      } else delete watched[k];
+    }
+    if (on) for (const k of alsoClear) delete resume[k];
+    return { watched, resume };
+  });
+}
+
 export function saveResume(key: string, pos: number, dur: number): void {
-  // Finished (>95%) or barely started (<30s): nothing to resume.
+  // Finished (>95%) or barely started (<30s): nothing to resume. Finished also means watched.
   updateData((d) => {
     const resume = { ...d.resume };
-    if (dur > 0 && (pos / dur > 0.95 || pos < 30)) delete resume[key];
+    if (dur > 0 && pos / dur > 0.95) {
+      delete resume[key];
+      return { resume, watched: { ...(d.watched || {}), [key]: Date.now() } };
+    }
+    if (dur > 0 && pos < 30) delete resume[key];
     else resume[key] = { pos, dur, at: Date.now() };
     return { resume };
   });

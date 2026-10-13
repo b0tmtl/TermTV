@@ -7,10 +7,10 @@ import { focusable, focused, focusFirst } from '@/navigation/focus';
 import { replace } from '@/navigation/router';
 import { itemByKey, libraryState, movieDetails, seriesDetails, variantsOf } from '@/state/library';
 import { useStore } from '@/state/store';
-import { user } from '@/state/user';
+import { isWatched, user } from '@/state/user';
 import { Img, Prompt } from '@/ui/Cards';
 import { showMenu } from '@/ui/Dialog';
-import { favoriteToggle, itemMenu, startPlayback } from '@/ui/actions';
+import { episodeWatchedOption, favoriteToggle, itemMenu, startPlayback } from '@/ui/actions';
 import { Icon } from '@/ui/icons';
 
 export function DetailsScreen({ itemKey }: { itemKey: string }) {
@@ -232,14 +232,30 @@ export function DetailsScreen({ itemKey }: { itemKey: string }) {
       </div>
       {seasonEps.length > 0 && playEp && (
         <div class="episodes" style={{ marginTop: 26 }}>
+          <div class="dim" style={{ fontSize: 20, margin: '0 0 8px 4px' }}>{t('watched.episodeHint')}</div>
           <div class="row" data-scroll="x" data-scroll-pad="200" data-focus-memory="">
             <div class="row-inner">
               {seasonEps.map((e) => {
                 const r = data.resume[e.key];
                 return (
-                  <div key={e.key} class="ep-item" {...focusable({ id: 'ep:' + e.key, onEnter: () => playEp!(e) })}>
+                  <div
+                    key={e.key}
+                    class="ep-item"
+                    {...focusable({
+                      id: 'ep:' + e.key,
+                      onEnter: () => playEp!(e),
+                      onKey: (k) => {
+                        if (k.key !== 'yellow' && k.key !== 'menu') return false;
+                        const opts = [episodeWatchedOption(e)];
+                        if (r) opts.push({ label: t('details.fromStart'), onSelect: () => playEp!(e, 0) });
+                        showMenu('S' + e.season + ' · E' + e.episode + (e.title ? '  ' + e.title : ''), opts);
+                        return true;
+                      },
+                    })}
+                  >
                     <div class="thumb">
                       <Img src={e.image || item.image} alt="" />
+                      {isWatched(e.key) && <span class="seen"><Glyph n="check" /></span>}
                       {r && (
                         <div class="progress">
                           <i style={{ width: (r.pos / r.dur) * 100 + '%' }} />

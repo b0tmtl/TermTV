@@ -505,5 +505,12 @@
       "cycling": "Cycling",
       "others": "Other sports"
     }
+  },
+  "watched": {
+    "mark": "Mark as watched",
+    "unmark": "Mark as not watched",
+    "marked": "{name} marked as watched",
+    "unmarked": "{name} marked as not watched",
+    "episodeHint": "Options (yellow) on an episode: mark as watched"
   }
 }
